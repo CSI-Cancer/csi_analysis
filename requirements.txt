@@ -1,0 +1,8 @@
+# CSI packages; may need to be modified to install without authenticating
+../csi_images
+-e .
+# PyPI packages
+numpy
+pyvips
+pdoc
+pytest

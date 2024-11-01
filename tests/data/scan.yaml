@@ -1,0 +1,140 @@
+!<csi_utils.scans.Scan>
+slide_id: DUMMY_SLIDE_ID_FOR_TESTING
+path: /mnt/HDSCA_Development/data/0B68818
+start_date: 2024-02-12T18:17:43-0800
+end_date: 2024-02-12T18:41:16-0800
+scan_time_s: 1413
+scanner_id: axioscan7_0
+tray: 2
+slot: 3
+camera: Orca
+objective: 10x-0.45
+pixel_size_um: 0.652
+tile_width_px: 2040
+tile_height_px: 2040
+tile_overlap_proportion: 0.01
+channels:
+  - !<csi_utils.csi_scans.Scan.Channel>
+    name: DAPI
+    exposure_ms: 15.0
+    intensity: 0.5
+  - !<csi_utils.csi_scans.Scan.Channel>
+    name: AF488
+    exposure_ms: 150.0
+    intensity: 1.0
+  - !<csi_utils.csi_scans.Scan.Channel>
+    name: AF555
+    exposure_ms: 140.0
+    intensity: 1.0
+  - !<csi_utils.csi_scans.Scan.Channel>
+    name: AF647
+    exposure_ms: 300.0
+    intensity: 1.0
+roi:
+  - !<csi_utils.csi_scans.Scan.ROI>
+    origin_x_um: -59000
+    origin_y_um: 816
+    width_um: 55997
+    height_um: 21544
+    tile_rows: 17
+    tile_cols: 43
+    focus_points:
+      - - -50103
+        - 3006
+        - 3945
+      - - -41139
+        - 3006
+        - 3939
+      - - -32175
+        - 3006
+        - 3939
+      - - -23211
+        - 3006
+        - 3942
+      - - -14247
+        - 3006
+        - 3945
+      - - -5283
+        - 3006
+        - 3947
+      - - -58800
+        - 5774
+        - 3944
+      - - -54585
+        - 7310
+        - 3940
+      - - -45621
+        - 7310
+        - 3937
+      - - -36657
+        - 7310
+        - 3936
+      - - -27693
+        - 7310
+        - 3940
+      - - -18729
+        - 7310
+        - 3945
+      - - -9765
+        - 7310
+        - 3951
+      - - -58800
+        - 11614
+        - 3933
+      - - -50103
+        - 11614
+        - 3932
+      - - -41139
+        - 11614
+        - 3931
+      - - -32175
+        - 11614
+        - 3935
+      - - -23211
+        - 11614
+        - 3942
+      - - -14247
+        - 11614
+        - 3952
+      - - -5283
+        - 11614
+        - 3960
+      - - -54585
+        - 15918
+        - 3926
+      - - -45621
+        - 15918
+        - 3925
+      - - -36657
+        - 15918
+        - 3927
+      - - -27693
+        - 15918
+        - 3936
+      - - -18729
+        - 15918
+        - 3948
+      - - -9765
+        - 15918
+        - 3960
+      - - -58800
+        - 19058
+        - 3922
+      - - -50103
+        - 20222
+        - 3918
+      - - -41139
+        - 20222
+        - 3919
+      - - -32175
+        - 20222
+        - 3925
+      - - -23211
+        - 20222
+        - 3938
+      - - -14247
+        - 20222
+        - 3955
+      - - -5283
+        - 20222
+        - 3968
