@@ -10,10 +10,14 @@ readme = "README.md"
 
 dependencies = [
     "csi_images >=1.0",
+    "numpy >=2.0",
+    "pandas >=2.0",
+    "scikit-image >=0.24.0",
+    "opencv-python-headless >=4.5",
 ]
 
 [project.scripts]
-make_docs = "csi_analysis.make_docs:main"
+make_docs = "csi_analysis.utils.make_docs:main"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

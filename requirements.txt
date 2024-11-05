@@ -3,6 +3,8 @@
 -e .
 # PyPI packages
 numpy
-pyvips
+pandas
+scikit-image
+opencv-python-headless
 pdoc
 pytest

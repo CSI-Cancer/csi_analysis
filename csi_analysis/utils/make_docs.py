@@ -35,7 +35,7 @@ def argument_parser() -> argparse.Namespace:
 
 def main():
     args = argument_parser()
-    repository_path = os.path.dirname(os.path.dirname(__file__))
+    repository_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     # Check if args.venv is absolute or relative
     if not os.path.isabs(args.venv):
         args.venv = os.path.join(repository_path, args.venv)

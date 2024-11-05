@@ -22,6 +22,7 @@ import logging
 import logging.handlers
 
 import multiprocessing
+import multiprocessing.queues
 
 multiprocess_logging_listener = None
 
@@ -31,7 +32,7 @@ def get_logger(
     level=logging.INFO,
     log_file: str = None,
     mode: str = "a",
-    queue=None,
+    queue: multiprocessing.queues.Queue | logging.handlers.QueueHandler = None,
     mute_vips: bool = True,
 ) -> logging.Logger:
     """
@@ -40,7 +41,7 @@ def get_logger(
     :param level: the logging level, default is INFO.
     :param log_file: the (optional) file to log to.
     :param mode: the mode to open the file in.
-    :param queue: for multiprocessing: a queue to log to.
+    :param queue: for multiprocessing: a Queue or QueueHandler to log to.
     See https://docs.python.org/3/howto/logging-cookbook.html#logging-to-a-single-file-from-multiple-processes
     :param mute_vips: whether to mute the logging of the pyvips module.
     :return: the Logger object.
@@ -55,15 +56,17 @@ def get_logger(
         "%Y-%m-%d@%H:%M:%S",
     )
 
+    # Populate handlers based on args
     handlers = [logging.StreamHandler()]
-
     if log_file is not None and queue is not None:
         raise ValueError("Cannot log to both a file and a queue.")
     elif log_file is not None:
         handlers.append(logging.FileHandler(log_file, mode=mode))
     elif queue is not None:
-        handlers = [logging.handlers.QueueHandler(queue)]
-
+        if isinstance(queue, multiprocessing.queues.Queue):
+            handlers = [logging.handlers.QueueHandler(queue)]
+        elif isinstance(queue, logging.handlers.QueueHandler):
+            handlers = [queue]
     # Clear handlers and then add the new ones
     log.handlers.clear()
     for handler in handlers:

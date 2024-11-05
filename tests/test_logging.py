@@ -1,7 +1,9 @@
 import os
 import random
+import logging
+import logging.handlers
 
-from csi_analysis import csi_logging
+from csi_analysis.utils import csi_logging
 
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
@@ -23,8 +25,11 @@ def test_logging():
 
 def dummy_worker(queue: multiprocessing.Queue = None):
     names = ["Alice", "Bob", "Charlie", "David", "Eve", "Frank", "Grace", "Hank"]
+    queue = logging.handlers.QueueHandler(queue)
     log = csi_logging.get_logger(random.choice(names), queue=queue)
     log.info("This is a test log message.")
+    log = csi_logging.get_logger(random.choice(names) + "_round2", queue=queue)
+    log.info("This is another test log message.")
     return True
 
 
@@ -83,5 +88,5 @@ def test_processpool_logging():
         log_text = file.read()
     assert "This is a test log message." in log_text
     assert len(log_text) > current_length
-    os.remove("test.log")
+    # os.remove("test.log")
     csi_logging.stop_multiprocess_logging()
