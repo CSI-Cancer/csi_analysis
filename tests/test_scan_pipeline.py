@@ -31,6 +31,9 @@ class DummyPreprocessor(scan_pipeline.TilePreprocessor):
             level=logging.DEBUG if self.verbose else logging.INFO,
         )
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
+
     def preprocess(self, frame_images: list[np.ndarray]) -> list[np.ndarray]:
         return frame_images
 
@@ -53,6 +56,9 @@ class DummySegmenter(scan_pipeline.TileSegmenter):
         )
         # List of output mask types that this segmenter can output; must exist
         self.mask_types = [mask_type for mask_type in scan_pipeline.MaskType]
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
 
     def segment(
         self, frame_images: list[np.ndarray]
@@ -79,6 +85,9 @@ class DummyImageFilter(scan_pipeline.ImageFilter):
             level=logging.DEBUG if self.verbose else logging.INFO,
         )
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
+
     def filter_images(
         self,
         frame_images: list[np.ndarray],
@@ -103,6 +112,9 @@ class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
             name=self.__class__.__name__,
             level=logging.DEBUG if self.verbose else logging.INFO,
         )
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
 
     def extract_features(
         self,
@@ -131,6 +143,9 @@ class DummyFeatureFilter(scan_pipeline.FeatureFilter):
             level=logging.DEBUG if self.verbose else logging.INFO,
         )
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
+
     def filter_features(
         self, events: csi_events.EventArray
     ) -> tuple[csi_events.EventArray, csi_events.EventArray]:
@@ -154,6 +169,9 @@ class DummyClassifier(scan_pipeline.EventClassifier):
             level=logging.DEBUG if self.verbose else logging.INFO,
         )
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}-{self.version})"
+
     def classify_events(self, events: csi_events.EventArray) -> csi_events.EventArray:
         events.add_metadata(
             pd.DataFrame(
@@ -165,7 +183,7 @@ class DummyClassifier(scan_pipeline.EventClassifier):
 
 def test_scan_pipeline():
     scan = csi_scans.Scan.load_yaml("tests/data")
-    pipeline = scan_pipeline.ScanPipeline(
+    pipeline = scan_pipeline.TilingScanPipeline(
         scan,
         output_path="tests/data",
         preprocessors=[DummyPreprocessor(scan, "2024-10-30")],
@@ -177,7 +195,7 @@ def test_scan_pipeline():
         scan_feature_filters=[DummyFeatureFilter(scan, "2024-10-30")],
         scan_event_classifiers=[DummyClassifier(scan, "2024-10-30")],
         verbose=True,
-        # max_workers=1,
+        max_workers=1,
     )
     events = pipeline.run()
     assert len(events) == scan.roi[0].tile_rows * scan.roi[0].tile_cols

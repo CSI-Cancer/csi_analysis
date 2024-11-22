@@ -9,15 +9,17 @@ import pandas as pd
 
 from skimage.measure import regionprops_table
 
-from csi_images import csi_scans, csi_tiles, csi_events
+from csi_images.csi_scans import Scan
+from csi_images.csi_tiles import Tile
+from csi_images.csi_events import EventArray
 
 
 def mask_to_events(
-    scan: csi_scans.Scan,
-    tile: csi_tiles.Tile,
+    scan: Scan,
+    tile: Tile,
     mask: np.ndarray,
     log: logging.Logger = None,
-) -> csi_events.EventArray:
+) -> EventArray:
     """
     Extracts events from a mask.
     :param scan: scan metadata
@@ -30,7 +32,7 @@ def mask_to_events(
     """
     if np.max(mask) == 0:
         # Nothing here, return an empty EventArray
-        return csi_events.EventArray()
+        return EventArray()
 
     # Use skimage.measure.regionprops_table to compute properties
     info = pd.DataFrame(
@@ -68,4 +70,4 @@ def mask_to_events(
         },
     )
     info = pd.concat([other_info, info], axis=1)
-    return csi_events.EventArray(info, None, None)
+    return EventArray(info, None, None)

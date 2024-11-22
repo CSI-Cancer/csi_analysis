@@ -24,6 +24,13 @@ import logging.handlers
 import multiprocessing
 import multiprocessing.queues
 
+import warnings
+
+warnings.warn(
+    "This module is deprecated and will be removed in a future release. "
+    "Very sad since I just made it a week ago. Transition to using loguru instead.",
+)
+
 multiprocess_logging_listener = None
 
 

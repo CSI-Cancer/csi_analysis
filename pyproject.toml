@@ -4,16 +4,25 @@ version = "1.0.0"
 description = "CSI-Cancer analysis pipeline templates."
 requires-python = ">=3.11"
 authors = [
-    { name = "Brian J. Zhang", email = "8885230+brianjzhang@users.noreply.github.com" }
+    { name = "Brian Zhang", email = "8885230+brianjzhang@users.noreply.github.com" }
 ]
 readme = "README.md"
 
 dependencies = [
-    "csi_images >=1.0",
-    "numpy >=2.0",
-    "pandas >=2.0",
-    "scikit-image >=0.24.0",
-    "opencv-python-headless >=4.5",
+    "csi_images",
+    "pandas",
+    "numpy",
+]
+
+
+[project.optional-dependencies]
+images = [
+    "csi_images[imageio]",
+    "scikit-image",
+    "opencv-python",
+]
+all = [
+    "csi_analysis[images]",
 ]
 
 [project.scripts]

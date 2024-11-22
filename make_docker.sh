@@ -8,8 +8,8 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PACKAGE_NAME=$(basename "$SCRIPT_DIR")
 
-# Build prerequisite Docker images if needed
-PREREQUISITE_IMAGES=("csi_images")
+# Build prerequisite Docker images if needed (for private dependencies)
+PREREQUISITE_IMAGES=()
 for IMAGE in "${PREREQUISITE_IMAGES[@]}"; do
   # Run their make_docker.sh scripts, assuming that they're in the same directory
   bash "$SCRIPT_DIR"/../"$IMAGE"/make_docker.sh

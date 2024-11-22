@@ -7,7 +7,10 @@
 # Interactive example:
 # $ docker run -it --rm -v /mnt/HDSCA_Development:/mnt/HDSCA_Development -v /mnt/csidata:/mnt/csidata csi_analysis
 
-FROM python:3.12-slim-bookworm
+ARG PYTHON_VERSION=3.12-slim-bookworm
+
+# https://hub.docker.com/_/python
+FROM python:$PYTHON_VERSION
 
 # ARGs are erased after FROM statements, so these need to be here
 ARG PACKAGE_NAME=csi_analysis
@@ -22,8 +25,8 @@ RUN python -m venv /venv
 ENV PATH=/venv/bin:$PATH
 
 # Install private dependencies
-COPY --from=csi_images /csi_images /csi_images
-RUN pip install /csi_images
+#COPY --from=csi_images /csi_images /csi_images
+#RUN pip install /csi_images
 
 # Copy over package and install
 COPY $PACKAGE_NAME /$PACKAGE_NAME/$PACKAGE_NAME

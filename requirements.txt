@@ -1,10 +1,11 @@
-# CSI packages; may need to be modified to install without authenticating
-../csi_images
--e .
+-e .[all]
 # PyPI packages
+csi-images[imageio]
 numpy
 pandas
 scikit-image
 opencv-python-headless
+scikit-learn
 pdoc
 pytest
+loguru
