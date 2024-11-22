@@ -1,4 +1,6 @@
-# csi_analysis
+# csi_analysis: Analytical modules and pipelines for CSI-Cancer
+
+[![PyPI version](https://img.shields.io/pypi/v/csi-analysis)](https://pypi.org/project/csi-analysis/)
 
 This package contains classes and functions for running modular analysis pipelines on
 data types commonly used by CSI-Cancer. Currently, this only includes whole-slide
