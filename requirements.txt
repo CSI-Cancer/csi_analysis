@@ -1,6 +1,7 @@
 -e .[all]
 # PyPI packages
 csi-images[imageio]
+loguru
 numpy
 pandas
 scikit-image
@@ -8,4 +9,6 @@ opencv-python-headless
 scikit-learn
 pdoc
 pytest
-loguru
+hatchling
+build
+twine
