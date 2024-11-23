@@ -5,7 +5,7 @@ PACKAGE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && cd .. && p
 PACKAGE_NAME=$(basename "$PACKAGE_DIR")
 
 # Creates the documentation for the package
-MODULES="$PACKAGE_NAME tests"
+MODULES="$PACKAGE_NAME ./tests"
 
 # We assume the appropriate virtual environment has already been activated
 pip install pdoc -q --disable-pip-version-check && \

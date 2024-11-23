@@ -28,12 +28,21 @@
             <input type="search" placeholder="Search..." role="searchbox" aria-label="search"
                    pattern=".+" required>
 
+            <h2>Contents</h2>
+            <ul>
+  <li><a href="#csi_analysis-analytical-modules-and-pipelines-for-csi-cancer">csi_analysis: Analytical modules and pipelines for CSI-Cancer</a>
+  <ul>
+    <li><a href="#structure">Structure</a></li>
+    <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#installation">Installation</a></li>
+  </ul></li>
+</ul>
+
 
             <h2>Submodules</h2>
             <ul>
                     <li><a href="csi_analysis/modules.html">modules</a></li>
                     <li><a href="csi_analysis/pipelines.html">pipelines</a></li>
-                    <li><a href="csi_analysis/utils.html">utils</a></li>
             </ul>
 
 
@@ -50,10 +59,75 @@
                     <h1 class="modulename">
 csi_analysis    </h1>
 
-                
-                
-                
-                
+                        <div class="docstring"><h1 id="csi_analysis-analytical-modules-and-pipelines-for-csi-cancer">csi_analysis: Analytical modules and pipelines for CSI-Cancer</h1>
+
+<p><a href="https://pypi.org/project/csi-analysis/"><img src="https://img.shields.io/pypi/v/csi-analysis" alt="PyPI version" /></a></p>
+
+<p>This package contains classes and functions for running modular analysis pipelines on
+data types commonly used by CSI-Cancer. Currently, this only includes whole-slide
+images (immunoflourescent scans). In particular, this package is meant to provide
+abstract base classes that can be fit into an then run in a standard pipeline. This will
+enable more interchangeability and easier development of new modules, such as for image
+segmentation or feature extraction.</p>
+
+<p>While much of the functionality is specific to the CSI-Cancer organization, some of the
+functionality and structure may be beneficial for the broader community.
+Other packages in the CSI-Cancer organization may depend on this package.</p>
+
+<h2 id="structure">Structure</h2>
+
+<p>Currently, this package contains the main module: <code>csi_scan_pipeline.py</code>.
+This module contains the abstract base classes for the pipeline, as well as the
+<code>ScanPipeline</code> class, which is the main class for running the pipeline. This class
+contains the <code>run()</code> method, which handles parallelization, logging, and passing data
+between the module components. 4</p>
+
+<h2 id="documentation">Documentation</h2>
+
+<p>For more detailed documentation, open up <code>docs/index.html</code> in your browser.</p>
+
+<p>To regenerate the documentation, ensure that you
+have <a href="#installation">installed the package</a> and then run:</p>
+
+<pre><code>make_docs
+</code></pre>
+
+<h2 id="installation">Installation</h2>
+
+<p>If you haven't yet, make sure
+to <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent">set up an SSH key for GitHub</a>.</p>
+
+<ol>
+<li>Activate your <code>conda</code> (<code>conda activate yourenv</code>) or
+<code>venv</code> (<code>source path/to/your/venv/bin/activate</code>) environment first.</li>
+<li>Clone <code>csi_images</code> and install:</li>
+</ol>
+
+<pre><code>cd ~/path/to/your/repositories
+git clone git@github.com:CSI-Cancer/csi_analysis.git
+pip install ./csi_analysis
+</code></pre>
+
+<p>Alternatively, you can "editable" install the package, which will allow you to make
+changes to the package and have them reflected in your environment without reinstalling:</p>
+
+<pre><code>pip install -e ./csi_analysis
+</code></pre>
+
+<p>This will add symbolic links to your <code>site-packages</code> directory instead of copying the
+package files over.</p>
+</div>
+
+                        <input id="mod-csi_analysis-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+
+                        <label class="view-source-button" for="mod-csi_analysis-view-source"><span>View Source</span></label>
+
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">1</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">2</span></a><span class="sd">.. include:: ../README.md</span>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">3</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span></pre></div>
+
+
             </section>
     </main>
 <script>

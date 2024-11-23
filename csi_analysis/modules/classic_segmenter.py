@@ -63,66 +63,6 @@ def normalize_with_median(image):
     return image_copy
 
 
-def remove_objects_size(
-    labeled_image, max_size, operation_str, default_image, reenumerate=False
-):
-    # Map operator strings to actual operator functions
-    operations = {
-        "==": operator.eq,
-        ">": operator.gt,
-        "<": operator.lt,
-        ">=": operator.ge,
-        "<=": operator.le,
-    }
-
-    # Get the actual operator function from the map
-    operation = operations.get(operation_str)
-
-    if operation is None:
-        raise ValueError(
-            "Invalid operation string. Choose from '==', '>', '<', '>=', '<='."
-        )
-
-    # Get region properties for both labeled_image and default_image
-    labeled_regions = regionprops(labeled_image)
-    default_regions = regionprops(default_image)
-
-    # Initialize a mask of zeros with the same shape as the labeled_image
-    remove_mask = np.zeros_like(labeled_image, dtype=bool)
-    count = 0
-
-    # Iterate over each region in the default_image and labeled_image, comparing areas
-    for i, default_region in enumerate(default_regions):
-        if i < len(labeled_regions):  # Ensure index exists in labeled_regions
-            labeled_region = labeled_regions[i]
-
-            # Compare the region's area in the default_image with the max_size
-            if operation(default_region.area, max_size):
-                # Update the mask for the current region in the labeled_image
-                remove_mask[labeled_image == labeled_region.label] = True
-                count += 1
-
-    # Apply the mask to the labeled_image to set the pixels of specified objects to 0
-    labeled_image[remove_mask] = 0
-
-    # Re-enumeration if requested
-    if reenumerate:
-        labeled_image, _, _ = relabel_sequential(labeled_image)
-
-    return labeled_image
-
-
-def rmObjects_id(x, index, reenumerate=True):
-    # Ensure x is a NumPy array
-    x = np.array(x)
-
-    # Create a mask for all values to be removed
-    mask = np.isin(x, index)
-    x[mask] = 0  # Set the identified positions to 0
-
-    return x
-
-
 def propagate(x, seeds, mask=None, lambda_value=1e-4):
     """
     Voronoi-based segmentation of an image using seeds.

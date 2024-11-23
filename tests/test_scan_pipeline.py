@@ -1,19 +1,18 @@
-import logging
+import sys
 
 import numpy as np
 import pandas as pd
 
-from csi_analysis.utils import csi_logging
-from csi_images import csi_scans, csi_tiles, csi_events
+from csi_images.csi_scans import Scan
+from csi_images.csi_events import EventArray
 from csi_analysis.pipelines import scan_pipeline
 
 
 class DummyPreprocessor(scan_pipeline.TilePreprocessor):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         """
@@ -25,11 +24,6 @@ class DummyPreprocessor(scan_pipeline.TilePreprocessor):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
@@ -41,19 +35,13 @@ class DummyPreprocessor(scan_pipeline.TilePreprocessor):
 class DummySegmenter(scan_pipeline.TileSegmenter):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
         # List of output mask types that this segmenter can output; must exist
         self.mask_types = [mask_type for mask_type in scan_pipeline.MaskType]
 
@@ -71,19 +59,13 @@ class DummySegmenter(scan_pipeline.TileSegmenter):
 class DummyImageFilter(scan_pipeline.ImageFilter):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
@@ -99,19 +81,13 @@ class DummyImageFilter(scan_pipeline.ImageFilter):
 class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
@@ -120,7 +96,7 @@ class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
         self,
         frame_images: list[np.ndarray],
         masks: dict[scan_pipeline.MaskType, np.ndarray],
-        events: csi_events.EventArray,
+        events: EventArray,
     ) -> pd.DataFrame:
         features = pd.DataFrame({"mean_intensity": [np.mean(frame_images[0])]})
         return features
@@ -129,50 +105,36 @@ class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
 class DummyFeatureFilter(scan_pipeline.FeatureFilter):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
 
-    def filter_features(
-        self, events: csi_events.EventArray
-    ) -> tuple[csi_events.EventArray, csi_events.EventArray]:
-        return events, csi_events.EventArray()
+    def filter_features(self, events: EventArray) -> tuple[EventArray, EventArray]:
+        return events, EventArray()
 
 
 class DummyClassifier(scan_pipeline.EventClassifier):
     def __init__(
         self,
-        scan: csi_scans.Scan,
+        scan: Scan,
         version: str,
-        verbose: bool = False,
         save: bool = False,
     ):
         self.scan = scan
         self.version = version
         self.save = save
-        self.verbose = verbose
-        self.log = csi_logging.get_logger(
-            name=self.__class__.__name__,
-            level=logging.DEBUG if self.verbose else logging.INFO,
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
 
-    def classify_events(self, events: csi_events.EventArray) -> csi_events.EventArray:
+    def classify_events(self, events: EventArray) -> EventArray:
         events.add_metadata(
             pd.DataFrame(
                 {f"model_classification{len(events)}": ["dummy"] * len(events)}
@@ -182,7 +144,10 @@ class DummyClassifier(scan_pipeline.EventClassifier):
 
 
 def test_scan_pipeline():
-    scan = csi_scans.Scan.load_yaml("tests/data")
+    scan = Scan.load_yaml("tests/data")
+    log_options = {
+        sys.stderr: {"level": "DEBUG", "colorize": True},
+    }
     pipeline = scan_pipeline.TilingScanPipeline(
         scan,
         output_path="tests/data",
@@ -194,8 +159,10 @@ def test_scan_pipeline():
         tile_event_classifiers=[DummyClassifier(scan, "2024-10-30")],
         scan_feature_filters=[DummyFeatureFilter(scan, "2024-10-30")],
         scan_event_classifiers=[DummyClassifier(scan, "2024-10-30")],
-        verbose=True,
         max_workers=1,
+        log_options=log_options,
     )
     events = pipeline.run()
-    assert len(events) == scan.roi[0].tile_rows * scan.roi[0].tile_cols
+    assert (
+        len(events) == scan_pipeline.roi[0].tile_rows * scan_pipeline.roi[0].tile_cols
+    )
