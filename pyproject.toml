@@ -21,6 +21,16 @@ images = [
     "scikit-image",
     "opencv-python",
 ]
+cpu_ml = [
+    "scikit-learn",
+]
+gpu_ml = [
+    "torch",
+    "cuml",
+]
+cellpose = [
+    "cellpose",
+]
 dev = [
     "pdoc",
     "pytest",
@@ -30,11 +40,11 @@ dev = [
 ]
 all = [
     "csi_analysis[images]",
+    "csi_analysis[cpu_ml]",
+    "csi_analysis[gpu_ml]",
+    "csi_analysis[cellpose]",
     "csi_analysis[dev]",
 ]
-
-[project.scripts]
-make_docs = "csi_analysis.utils.make_docs:main"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

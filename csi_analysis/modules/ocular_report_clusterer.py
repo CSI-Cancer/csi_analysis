@@ -22,11 +22,10 @@ class OcularReportClusterer(EventClassifier):
     - cluster_id: the cluster id for each event
     """
 
-    COLUMN_NAME = "cluster_id"
-
     def __init__(
         self,
         columns: list[str] = None,
+        column_name: str = "cluster_id",
         max_cluster_size: int = 20,
         sort_by: str = None,
         ascending: bool = True,
@@ -34,6 +33,7 @@ class OcularReportClusterer(EventClassifier):
         save: bool = False,
     ):
         self.columns = columns
+        self.column_name = column_name
         self.sort_by = sort_by
         self.max_cluster_size = max_cluster_size
         self.ascending = ascending
@@ -47,10 +47,10 @@ class OcularReportClusterer(EventClassifier):
         if self.copy:
             events = events.copy()
         cluster_labels = self.cluster_with_max_size(events)
-        events.metadata["cluster_id"] = cluster_labels
+        events.metadata[self.column_name] = cluster_labels
         if self.sort_by is not None:
             cluster_mapping = self.sort_clusters(events)
-            events.metadata["cluster_id"] = events.metadata["cluster_id"].map(
+            events.metadata[self.column_name] = events.metadata[self.column_name].map(
                 cluster_mapping
             )
         return events
@@ -124,9 +124,9 @@ class OcularReportClusterer(EventClassifier):
         # Get the average "interesting" p-value for each cluster
         sort_data = events.get(self.sort_by)
         cluster_means = []
-        cluster_ids = pd.unique(events.metadata["cluster_id"])
+        cluster_ids = pd.unique(events.metadata[self.column_name])
         for cluster_id in cluster_ids:
-            cluster_indices = events.metadata["cluster_id"] == cluster_id
+            cluster_indices = events.metadata[self.column_name] == cluster_id
             cluster_means.append(sort_data.loc[cluster_indices].mean()[0])
 
         # Sort the cluster_ids by their average p-values, descending (reverse=True)

@@ -4,9 +4,13 @@ csi-images[imageio]
 loguru
 numpy
 pandas
+tifffile
+imagecodecs
 scikit-image
 opencv-python-headless
 scikit-learn
+torch
+cellpose
 pdoc
 pytest
 hatchling

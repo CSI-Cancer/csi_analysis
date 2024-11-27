@@ -43,12 +43,12 @@ class TilePreprocessor(ABC):
     save: bool = False
 
     @abstractmethod
-    def preprocess(self, frame_images: list[np.ndarray]) -> list[np.ndarray]:
+    def preprocess(self, images: list[np.ndarray]) -> list[np.ndarray]:
         """
         Preprocess the frames of a tile, preferably in-place.
         Should return the frames in the same order.
         No coordinate system changes should occur here, as they are handled elsewhere.
-        :param frame_images: a list of np.ndarrays, each representing a frame.
+        :param images: a list of np.ndarrays, each representing a frame.
         :return: a list of np.ndarrays, each representing a frame.
         """
         pass
@@ -115,11 +115,11 @@ class TileSegmenter(ABC):
     save: bool = False
 
     @abstractmethod
-    def segment(self, frame_images: list[np.ndarray]) -> dict[MaskType, np.ndarray]:
+    def segment(self, images: list[np.ndarray]) -> dict[MaskType, np.ndarray]:
         """
-        Segments the frames of a tile to enumerated mask(s), not modifying frame_images.
+        Segments the frames of a tile to enumerated mask(s), not modifying images.
         Mask(s) should be returned in a dict with labeled types.
-        :param frame_images: a list of np.ndarrays, each representing a frame.
+        :param images: a list of np.ndarrays, each representing a frame.
         :return: a dict of np.ndarrays, each representing a mask.
         """
         pass
@@ -194,15 +194,15 @@ class ImageFilter(ABC):
     @abstractmethod
     def filter_images(
         self,
-        frame_images: list[np.ndarray],
+        images: list[np.ndarray],
         masks: dict[MaskType, np.ndarray],
     ) -> dict[MaskType, np.ndarray]:
         """
-        Using frame_images and masks, returns new masks that should have filtered out
+        Using images and masks, returns new masks that should have filtered out
         unwanted objects from the existing masks.
-        Should not be in-place, i.e. should not modify frame_images or masks.
+        Should not be in-place, i.e. should not modify images or masks.
         Returns a dict of masks that will overwrite the existing masks on identical keys.
-        :param frame_images: a list of np.ndarrays, each representing a frame.
+        :param images: a list of np.ndarrays, each representing a frame.
         :param masks: a dict of np.ndarrays, each representing a mask.
         :return: a dict of np.ndarrays, each representing a mask; now filtered.
         """
@@ -281,16 +281,16 @@ class FeatureExtractor(ABC):
     @abstractmethod
     def extract_features(
         self,
-        frame_images: list[np.ndarray],
+        images: list[np.ndarray],
         masks: dict[MaskType, np.ndarray],
         events: EventArray,
-    ) -> pd.DataFrame:
+    ) -> EventArray:
         """
-        Using frame_images, masks, and events, returns new features as a pd.DataFrame.
-        :param frame_images: a list of np.ndarrays, each representing a frame.
+        Using images, masks, and events, returns new features as a pd.DataFrame.
+        :param images: a list of np.ndarrays, each representing a frame.
         :param masks: a dict of np.ndarrays, each representing a mask.
         :param events: an EventArray, potentially with populated feature data.
-        :return: a pd.DataFrame representing new feature data for events.
+        :return: an EventArray with new populated feature data.
         """
         pass
 
@@ -527,6 +527,7 @@ class ReportGenerator(ABC):
     @abstractmethod
     def make_report(
         self,
+        output_path: str,
         events: EventArray,
     ) -> bool:
         """
