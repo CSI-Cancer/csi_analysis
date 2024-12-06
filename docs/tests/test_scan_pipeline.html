@@ -493,7 +493,7 @@ No coordinate system changes should occur here, as they are handled elsewhere.</
 <h6 id="parameters">Parameters</h6>
 
 <ul>
-<li><strong>frame_images</strong>:  a list of np.ndarrays, each representing a frame.</li>
+<li><strong>images</strong>:  a list of np.ndarrays, each representing a frame.</li>
 </ul>
 
 <h6 id="returns">Returns</h6>
@@ -647,13 +647,13 @@ No coordinate system changes should occur here, as they are handled elsewhere.</
 </span></pre></div>
 
 
-            <div class="docstring"><p>Segments the frames of a tile to enumerated mask(s), not modifying frame_images.
+            <div class="docstring"><p>Segments the frames of a tile to enumerated mask(s), not modifying images.
 Mask(s) should be returned in a dict with labeled types.</p>
 
 <h6 id="parameters">Parameters</h6>
 
 <ul>
-<li><strong>frame_images</strong>:  a list of np.ndarrays, each representing a frame.</li>
+<li><strong>images</strong>:  a list of np.ndarrays, each representing a frame.</li>
 </ul>
 
 <h6 id="returns">Returns</h6>
@@ -792,15 +792,15 @@ Mask(s) should be returned in a dict with labeled types.</p>
 </span></pre></div>
 
 
-            <div class="docstring"><p>Using frame_images and masks, returns new masks that should have filtered out
+            <div class="docstring"><p>Using images and masks, returns new masks that should have filtered out
 unwanted objects from the existing masks.
-Should not be in-place, i.e. should not modify frame_images or masks.
+Should not be in-place, i.e. should not modify images or masks.
 Returns a dict of masks that will overwrite the existing masks on identical keys.</p>
 
 <h6 id="parameters">Parameters</h6>
 
 <ul>
-<li><strong>frame_images</strong>:  a list of np.ndarrays, each representing a frame.</li>
+<li><strong>images</strong>:  a list of np.ndarrays, each representing a frame.</li>
 <li><strong>masks</strong>:  a dict of np.ndarrays, each representing a mask.</li>
 </ul>
 
@@ -944,12 +944,12 @@ Returns a dict of masks that will overwrite the existing masks on identical keys
 </span></pre></div>
 
 
-            <div class="docstring"><p>Using frame_images, masks, and events, returns new features as a pd.DataFrame.</p>
+            <div class="docstring"><p>Using images, masks, and events, returns new features as a pd.DataFrame.</p>
 
 <h6 id="parameters">Parameters</h6>
 
 <ul>
-<li><strong>frame_images</strong>:  a list of np.ndarrays, each representing a frame.</li>
+<li><strong>images</strong>:  a list of np.ndarrays, each representing a frame.</li>
 <li><strong>masks</strong>:  a dict of np.ndarrays, each representing a mask.</li>
 <li><strong>events</strong>:  an EventArray, potentially with populated feature data.</li>
 </ul>
@@ -957,7 +957,7 @@ Returns a dict of masks that will overwrite the existing masks on identical keys
 <h6 id="returns">Returns</h6>
 
 <blockquote>
-  <p>a pd.DataFrame representing new feature data for events.</p>
+  <p>an EventArray with new populated feature data.</p>
 </blockquote>
 </div>
 
