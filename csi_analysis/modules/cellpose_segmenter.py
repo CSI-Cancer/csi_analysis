@@ -5,9 +5,10 @@ import numpy as np
 import torch
 from cellpose import models
 
-from csi_analysis.pipelines.scan_pipeline import MaskType, TileSegmenter
 from csi_images.csi_scans import Scan
 from csi_images.csi_images import make_rgb
+
+from csi_analysis.pipelines.scan_pipeline import MaskType, TileSegmenter
 
 
 class CellposeSegmenter(TileSegmenter):
