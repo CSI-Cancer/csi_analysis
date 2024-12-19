@@ -31,6 +31,10 @@ gpu_ml = [
 cellpose = [
     "cellpose",
 ]
+training = [
+    "torch",
+    "torchvision",
+]
 dev = [
     "pdoc",
     "pytest",
