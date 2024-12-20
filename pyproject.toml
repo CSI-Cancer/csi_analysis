@@ -56,3 +56,17 @@ addopts = "-ra -q"
 testpaths = [
     "tests",
 ]
+
+[tool.poetry]
+name = "channel_classifier"
+version = "0.1.0"
+description = "Channel Classifier for lb-x"
+authors = ["Rajiv Mandya Nagaraju <mandyana@usc.edu>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.5.1"
+torchvision = "^0.20.1"
+csi_utils = { git = "git@github.com:CSI-Cancer/csi_utils.git", branch = "main" }
+csi_images = { git = "git@github.com:CSI-Cancer/csi_images.git", branch = "main" }
+python-dotenv = "*"
