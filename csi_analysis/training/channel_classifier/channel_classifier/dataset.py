@@ -20,13 +20,24 @@ def main(
 ):
     logger.info(f"DATA_DIR path is: {DATA_DIR}")
 
+    """
     # Query the analysis table from prod database to get the list of
-    # locked slides.
-    slides = get_locked_slides()
+    # locked slides and store in the raw data directory
+    """
+    # slides = get_locked_slides()
+    """
+    # query identifiers for the events from ocular_hitlist from all
+    # the locked slides(slide_id, frame_id, cellx, celly, interesting,
+    # channel_classification)
+    """
+    # events_dataframe = get_events(slides)
+    """
+    # Get the event crops from the csidata drive, consider multiprocessing
+    # Since ther are 100s of thousands of events
+    """
+    # events = get_event_crops(events)
 
-    # query identifiers forthe events from ocular_hitlist from all
-    # the locked slides(slide_id, frame_id, x, y)
-
+    # store in the interim data directory
 
 
 if __name__ == "__main__":
