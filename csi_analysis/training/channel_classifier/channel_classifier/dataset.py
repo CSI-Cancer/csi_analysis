@@ -9,8 +9,10 @@ from channel_classifier.config import (
     DATA_DIR, RAW_DATA_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR,
     EXTERNAL_DATA_DIR,
 )
-from csi_images.csi_events import EventArray
-from csi_utils import csi_databases
+
+from channel_classifier.utils import (
+    get_locked_slides, get_events, get_event_crops,
+)
 
 def main(
         raw_data: Path = RAW_DATA_DIR,
@@ -24,18 +26,18 @@ def main(
     # Query the analysis table from prod database to get the list of
     # locked slides and store in the raw data directory
     """
-    # slides = get_locked_slides()
+    slides = get_locked_slides()
     """
     # query identifiers for the events from ocular_hitlist from all
     # the locked slides(slide_id, frame_id, cellx, celly, interesting,
     # channel_classification)
     """
-    # events_dataframe = get_events(slides)
+    events_dataframe = get_events(slides)
     """
     # Get the event crops from the csidata drive, consider multiprocessing
     # Since ther are 100s of thousands of events
     """
-    # events = get_event_crops(events)
+    events = get_event_crops(events)
 
     # store in the interim data directory
 

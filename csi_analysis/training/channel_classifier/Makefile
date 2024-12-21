@@ -49,7 +49,7 @@ clean-data:
 train:
 	poetry	run	python channel_classifier/modeling/train.py
 
-# Clean the project
+# Clean the project from venv and cache files
 .PHONY:	clean
 clean:
 	rm	-rf	$(VENV_DIR)
