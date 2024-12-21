@@ -37,10 +37,12 @@ update:
 create-data:
 	poetry	run	python channel_classifier/dataset.py
 
-# Clean data
-.PHONY:	clean-data
+# Delete data except immutable raw data
+.PHONY:	delete-data
 clean-data:
-	rm	-rf	./data/*
+	rm	-rf	./data/processed/*
+	rm	-rf	./data/external/*
+	rm	-rf	./data/interim/*
 
 # Train the model
 .PHONY:	train

@@ -39,6 +39,5 @@ def main(
 
     # store in the interim data directory
 
-
 if __name__ == "__main__":
     main()
