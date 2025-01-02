@@ -1,27 +1,18 @@
+import numpy as np
+import torch
+import random
 
 
-from csi_images.csi_events import EventArray
-from csi_utils import csi_databases
+def set_random_seeds(seed):
+    """
+    Set random seeds for reproducibility.
 
-
-def get_locked_slides():
+    Parameters:
+    - seed: The seed value to set.
     """
-    Query the analysis table from prod database to get the list of
-    locked slides and store in the raw data directory
-    """
-    pass
-
-def get_events(slides):
-    """
-    Query identifiers for the events from ocular_hitlist from all
-    the locked slides(slide_id, frame_id, cellx, celly, interesting,
-    channel_classification)
-    """
-    pass
-
-def get_event_crops(events):
-    """
-    Get the event crops from the csidata drive, consider multiprocessing
-    Since ther are 100s of thousands of events
-    """
-    pass
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

@@ -70,3 +70,5 @@ torchvision = "^0.20.1"
 csi_utils = { git = "git@github.com:CSI-Cancer/csi_utils.git", branch = "main" }
 csi_images = { git = "git@github.com:CSI-Cancer/csi_images.git", branch = "main" }
 python-dotenv = "*"
+pandas = "*"
+numpy = "*"

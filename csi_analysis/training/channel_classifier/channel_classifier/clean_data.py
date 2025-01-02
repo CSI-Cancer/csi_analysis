@@ -1,0 +1,1 @@
+# Clean up the generated data for training the channel classifier

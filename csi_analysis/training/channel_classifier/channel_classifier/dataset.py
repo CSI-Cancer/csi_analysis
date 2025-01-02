@@ -3,6 +3,9 @@ import sys
 
 from loguru import logger
 
+#ML related imports
+import pandas as pd
+
 # Add the project root directory to sys.path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from channel_classifier.config import (
@@ -11,7 +14,7 @@ from channel_classifier.config import (
 )
 
 from channel_classifier.utils import (
-    get_locked_slides, get_events, get_event_crops,
+    get_events
 )
 
 def main(
@@ -26,18 +29,22 @@ def main(
     # Query the analysis table from prod database to get the list of
     # locked slides and store in the raw data directory
     """
-    slides = get_locked_slides()
+    slides = pd.read_csv(raw_data / "locked_slides.csv")
+    slides = slides["slide_id"].unique()
     """
     # query identifiers for the events from ocular_hitlist from all
     # the locked slides(slide_id, frame_id, cellx, celly, interesting,
     # channel_classification)
     """
-    events_dataframe = get_events(slides)
+    events, labels = get_events(slides)
+    if len(events) != len(labels):
+        assert False, "Events and labels are not of the same length"
+        
     """
     # Get the event crops from the csidata drive, consider multiprocessing
     # Since ther are 100s of thousands of events
     """
-    events = get_event_crops(events)
+    # events = get_event_crops(events)
 
     # store in the interim data directory
 
