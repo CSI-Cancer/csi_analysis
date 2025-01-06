@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import platform
 
 from loguru import logger
+import yaml
 load_dotenv()
 
 
@@ -48,8 +49,38 @@ MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+# Hyper parameter tuning config
+tune_config = {
+    "wandb_key": "f50e7404c274fd0240b3de443ad368d762b16643",
+    "tune": True,
+    "count" : 20,
+    "augment" : False,
+    "seed" : 42,
+    "debug" : True,
+    "device" : "cuda:0",
+}
+
+# Sweep config
+with open(PROJ_ROOT / "channel_classifier" / "sweep_config.yml") as f:
+    sweep_config = yaml.safe_load(f)
 
 ### Data configuration
-
+class_map = {
+    'D':0,
+    'CK':1,
+    'CD':2,
+    'V':3,
+    'CK|CD|V':4,
+    'CK|CD':5,
+    'D|CK|CD|V':6,
+    'CK|V':7,
+    'D|CK|CD':8,
+    'D|CK|V':9,
+    'D|V':10,
+    'D|CD|V':11,
+    'D|CD':12,
+    'D|CK':13,
+    'CD|V':14,
+}
 
 ### Model configuration
