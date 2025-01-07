@@ -14,7 +14,7 @@ parameters:
   l_b:
     values: [0.96, 0.97, 0.98, 0.99] # base for exponential decay of lambda
   lr:
-    values: [0.01, 0.001, 0.0001, 0.00001]
+    values: [0.01, 0.001, 0.0001, 0.00001, 0.000001]
   batch_size:
     values: [64, 128, 256, 512, 1024]
   scheduler:
