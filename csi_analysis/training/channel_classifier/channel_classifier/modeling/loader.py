@@ -21,6 +21,7 @@ class CustomDataset(Dataset):
     def __init__(self, images, labels, transform=None):
         self.images = images
         self.labels = labels
+        assert len(self.images) == len(self.labels), "Mismatch between images and labels length"
         self.transform = transform
 
     def __len__(self):
@@ -67,11 +68,11 @@ def get_data_loaders(sweep):
             data = glob.glob(os.path.join(root, class_name, '*.png'))
             np.random.shuffle(data)
             train_data.extend(data[:int(0.7*len(data))])
-            train_labels.extend([class_map[class_name]]*int(0.7*len(data)))
+            train_labels.extend([class_map[class_name]]*len(data[:int(0.7*len(data))]))
             val_data.extend(data[int(0.7*len(data)):int(0.85*len(data))])
-            val_labels.extend([class_map[class_name]]*int(0.15*len(data)))
+            val_labels.extend([class_map[class_name]]*len(data[int(0.7*len(data)):int(0.85*len(data))]))
             test_data.extend(data[int(0.85*len(data)):])
-            test_labels.extend([class_map[class_name]]*int(0.15*len(data)))
+            test_labels.extend([class_map[class_name]]*len(data[int(0.85*len(data)):]))
         train_image = np.array([np.array(Image.open(data)) for data in train_data])
         val_image = np.array([np.array(Image.open(data)) for data in val_data])
         test_image = np.array([np.array(Image.open(data)) for data in test_data])
@@ -95,9 +96,20 @@ def get_data_loaders(sweep):
                                       test_labels,
                                         transform=test_transform)
 
-        train_loader = DataLoader(train_dataset, batch_size=sweep.batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=sweep.batch_size, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=sweep.batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset,
+                                   batch_size=sweep.batch_size,
+                                     shuffle=True,
+                                     num_workers=8)
+        val_loader = DataLoader(val_dataset,
+                                 batch_size=sweep.batch_size,
+                                   shuffle=False,
+                                   num_workers=8,
+                                   drop_last=True)
+        test_loader = DataLoader(test_dataset,
+                                  batch_size=sweep.batch_size,
+                                    shuffle=False,
+                                    num_workers=8,
+                                    drop_last=True)
 
         return train_loader, val_loader, test_loader
 

@@ -56,7 +56,7 @@ tune_config = {
     "count" : 20,
     "augment" : False,
     "seed" : 42,
-    "debug" : True,
+    "debug" : False,
     "device" : "cuda:0",
 }
 

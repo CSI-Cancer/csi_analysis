@@ -19,7 +19,7 @@ from config import (
     DATA_DIR, MODELS_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR
 )
 #Model imports
-from modeling.model import ResNet4
+from modeling.model import ResNet4, DenseNet121
 
 #Data config imports
 from config import (
@@ -39,6 +39,8 @@ import wandb
 class Trainer(object):
     def __init__(self, config=None):
         self.config = config
+        self.best_val_accuracy = 0
+        self.best_val_loss = np.inf
         
     def run_training(self):
         with wandb.init(mode='disabled' if self.config.get("debug", False) else 'online'):
@@ -60,7 +62,8 @@ class Trainer(object):
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(sweep)
     
     def build_model(self, sweep):
-        self.model = ResNet4(dropout_rate=sweep["dropout_rate"], num_classes=sweep["num_classes"])
+        #self.model = ResNet4(dropout_rate=sweep["dropout"], num_classes=sweep["num_classes"])
+        self.model = DenseNet121(dropout=sweep["dropout"], num_classes=sweep["num_classes"])
         self.model = self.model.to(sweep["device"])
 
     def build_optimizer(self, sweep):
@@ -112,15 +115,15 @@ class Trainer(object):
         best_val_loss = np.inf
         best_epoch = 0
 
-        for epoch in range(self.config["epochs"]):
+        for epoch in range(sweep["epochs"]):
             self.model.train()
             train_loss = 0
             train_correct = 0
             train_total = 0
 
             train_loader = self.train_loader
-            for inputs, targets in tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.config['epochs']}"):
-                inputs, targets = inputs.to(self.config["device"]), targets.to(self.config["device"])
+            for inputs, targets in tqdm(train_loader, desc=f"Epoch {epoch+1}/{sweep['epochs']}"):
+                inputs, targets = inputs.to(sweep["device"]), targets.to(sweep["device"])
 
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
@@ -139,12 +142,23 @@ class Trainer(object):
             val_loss, val_accuracy = self.validate(sweep)
 
             # Save the best model
-            if val_loss < best_val_loss:
+            if val_loss < self.best_val_loss:
                 best_val_loss = val_loss
+                self.best_val_loss = val_loss
                 best_epoch = epoch
-                torch.save(self.model.state_dict(), MODELS_DIR / f"best_model.pth")
+                self.save_checkpoint(epoch, self.model, self.optimizer,
+                                self.scheduler, val_loss,
+                                MODELS_DIR / f"best_checkpoint.pth")
+            # Log metrics to wandb
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss": train_loss,
+                "train_accuracy": train_accuracy,
+                "val_loss": val_loss,
+                "val_accuracy": val_accuracy
+            })
 
-            print(f"Epoch {epoch+1}/{self.config['epochs']}, "
+            print(f"Epoch {epoch+1}/{sweep['epochs']}, "
                   f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, "
                   f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
 
@@ -159,7 +173,7 @@ class Trainer(object):
         with torch.no_grad():
             val_loader = self.val_loader
             for inputs, targets in val_loader:
-                inputs, targets = inputs.to(self.config["device"]), targets.to(self.config["device"])
+                inputs, targets = inputs.to(sweep["device"]), targets.to(sweep["device"])
 
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, targets)

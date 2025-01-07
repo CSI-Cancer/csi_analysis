@@ -1,42 +1,22 @@
-method: bayes
+method: random
 
 metric:
-  name: best_ari
+  name: val_accuracy
   goal: maximize
 
 parameters:
   epochs:
-    value: 100
-  momentum:
-    value: 0.9
+    value: 60
   weight_decay:
     values: [0.0001, 0.001, 0.01]
-  size_per_class:
-    value: 500
   l_e:
-    value: 10   # max epoch for linear warm-up of lambda
+    values: [5, 10, 15]   # max epoch for linear warm-up of lambda
   l_b:
-    value: 0.96 # base for exponential decay of lambda
-  in_channels:
-    value: 5
+    values: [0.96, 0.97, 0.98, 0.99] # base for exponential decay of lambda
   lr:
-    values: [0.01, 0.001, 0.0001]
-    # distribution: uniform
-    # min: 0.0001
-    # max: 0.05
+    values: [0.01, 0.001, 0.0001, 0.00001]
   batch_size:
-    values: [32, 64, 128, 256, 512, 1024]
-  p_shuffle:
-    values: [0.1, 0.3, 0.5, 0.7, 0.9]
-  h_dim:
-    value: 32 # [32, 64, 128, 256]
-  projection_dim:
-    value: 32 # [32, 64, 128, 256]
-  temperature:
-    value: 0.3
-    # distribution: uniform
-    # min: 0.07
-    # max: 0.5
+    values: [64, 128, 256, 512, 1024]
   scheduler:
     value: LambdaLR
   optimizer:
@@ -45,7 +25,7 @@ parameters:
     value: 15
   split:
     value: train/val/test
-  dropout_rate:
-    values: [0.1, 0.2, 0.3, 0.4]
+  dropout:
+    values: [0.1, 0.2, 0.3, 0.4, 0.5]
   device:
     value: cuda
