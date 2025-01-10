@@ -6,17 +6,21 @@ metric:
 
 parameters:
   epochs:
-    value: 60
+    value: 200
   weight_decay:
-    values: [0.0001, 0.001, 0.01]
+    distribution: uniform
+    min: 0.0001
+    max: 0.001
   l_e:
     values: [5, 10, 15]   # max epoch for linear warm-up of lambda
   l_b:
     values: [0.96, 0.97, 0.98, 0.99] # base for exponential decay of lambda
   lr:
-    values: [0.01, 0.001, 0.0001, 0.00001, 0.000001]
+    distribution: uniform
+    min: 0.000001
+    max: 0.0001
   batch_size:
-    values: [64, 128, 256, 512, 1024]
+    values: [64, 128, 256, 512, 728]
   scheduler:
     value: LambdaLR
   optimizer:
@@ -26,6 +30,6 @@ parameters:
   split:
     value: train/val/test
   dropout:
-    values: [0.1, 0.2, 0.3, 0.4, 0.5]
+    values: [0.1, 0.2, 0.3, 0.4]
   device:
-    value: cuda
+    value: cuda:0

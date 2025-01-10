@@ -19,7 +19,8 @@ from config import (
     DATA_DIR, MODELS_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR
 )
 #Model imports
-from modeling.model import ResNet4, DenseNet121
+from modeling.model import ResNet4, DenseNet121, get_model
+
 
 #Data config imports
 from config import (
@@ -41,6 +42,8 @@ class Trainer(object):
         self.config = config
         self.best_val_accuracy = 0
         self.best_val_loss = np.inf
+        self.early_stopping_patience = 15
+        self.epochs_since_improvement = 0
         
     def run_training(self):
         with wandb.init(mode='disabled' if self.config.get("debug", False) else 'online'):
@@ -63,8 +66,12 @@ class Trainer(object):
     
     def build_model(self, sweep):
         #self.model = ResNet4(dropout_rate=sweep["dropout"], num_classes=sweep["num_classes"])
-        self.model = DenseNet121(dropout=sweep["dropout"], num_classes=sweep["num_classes"])
-        self.model = self.model.to(sweep["device"])
+        self.model = get_model(dropout=sweep["dropout"],
+                                num_classes=sweep["num_classes"],
+                                  model_name="generic")
+        if torch.cuda.device_count() > 1:
+            self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
+        self.model.to(sweep.device)
 
     def build_optimizer(self, sweep):
         if sweep.optimizer == "sgd":
@@ -100,6 +107,7 @@ class Trainer(object):
         # Calculate class weights
         class_counts = []
         class_dirs = os.listdir(INTERIM_DATA_DIR)
+        class_dirs.remove('hitlist_data_metadata.csv')
         for class_dir in class_dirs:
             class_path = os.path.join(INTERIM_DATA_DIR, class_dir)
             class_counts.append(len(os.listdir(class_path)))
@@ -146,9 +154,12 @@ class Trainer(object):
                 best_val_loss = val_loss
                 self.best_val_loss = val_loss
                 best_epoch = epoch
+                self.epochs_since_improvement = 0  # Reset the counter
                 self.save_checkpoint(epoch, self.model, self.optimizer,
-                                self.scheduler, val_loss,
+                                self.scheduler, val_loss, val_accuracy,
                                 MODELS_DIR / f"best_checkpoint.pth")
+            else:
+                self.epochs_since_improvement = self.epochs_since_improvement + 1
             # Log metrics to wandb
             wandb.log({
                 "epoch": epoch + 1,
@@ -161,6 +172,12 @@ class Trainer(object):
             print(f"Epoch {epoch+1}/{sweep['epochs']}, "
                   f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, "
                   f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
+            # Check for early stopping
+            if self.epochs_since_improvement >= self.early_stopping_patience:
+                self.epochs_since_improvement = 0
+                self.early_stopping_patience = epoch
+                print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {self.early_stopping_patience} epochs.")
+                break
 
         print(f"Best Validation Loss: {best_val_loss:.4f} at epoch {best_epoch+1}")
     
@@ -188,13 +205,14 @@ class Trainer(object):
 
         return val_loss, val_accuracy
     
-    def save_checkpoint(self, epoch, model, optimizer, scheduler, val_loss, path):
+    def save_checkpoint(self, epoch, model, optimizer, scheduler, val_loss, val_accuracy, path):
         state = {
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
-            'val_loss': val_loss
+            'val_loss': val_loss,
+            'val_accuracy': val_accuracy
         }
         torch.save(state, path)
         print(f"Checkpoint saved at epoch {epoch+1} with validation loss: {val_loss:.4f}")
