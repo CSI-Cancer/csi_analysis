@@ -165,24 +165,31 @@ class OCULARFrameInfoGenerator:
             }
         )
         # Gather the number of events in each tile
-        df["cell_count"] = [sum(events.info["tile"] == i) for i in df["frame_id"]]
-        # Gather the average quality of DAPI and CD45 in each tile, ignoring
-        # empty slice warnings (some frames may have no events)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            df["dapi_quality"] = [
-                np.mean(events.metadata["dapi_quality"][events.info["tile"] == i])
-                for i in df["frame_id"]
-            ]
-            df["cy5_quality"] = [
-                np.mean(events.metadata["cy5_quality"][events.info["tile"] == i])
-                for i in df["frame_id"]
-            ]
-            df = df.fillna(0)
-        # Find the average
-        df["avg_quality"] = (df["dapi_quality"] + df["cy5_quality"]) / 2
-        # Round to 3 decimal places
-        df = df.round(3)
+        if len(events) > 0:
+            df["cell_count"] = [sum(events.info["tile"] == i) for i in df["frame_id"]]
+            # Gather the average quality of DAPI and CD45 in each tile, ignoring
+            # empty slice warnings (some frames may have no events)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                df["dapi_quality"] = [
+                    np.mean(events.metadata["dapi_quality"][events.info["tile"] == i])
+                    for i in df["frame_id"]
+                ]
+                df["cy5_quality"] = [
+                    np.mean(events.metadata["cy5_quality"][events.info["tile"] == i])
+                    for i in df["frame_id"]
+                ]
+                # Fill missing, find averages, and round to 3 decimal places
+                df = df.fillna(0)
+                df["avg_quality"] = (df["dapi_quality"] + df["cy5_quality"]) / 2
+                df = df.round(3)
+        else:
+            # No events, everything is 0
+            df["cell_count"] = 0
+            df["dapi_quality"] = 0
+            df["cy5_quality"] = 0
+            df["avg_quality"] = 0
+
         # Classically 1-indexed because of R
         df["frame_id"] += 1
         df.to_csv(os.path.join(output_path, "frameinfo.csv"))

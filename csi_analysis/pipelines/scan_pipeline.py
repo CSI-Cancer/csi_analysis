@@ -281,15 +281,15 @@ class FeatureExtractor(ABC):
     @abstractmethod
     def extract_features(
         self,
+        events: EventArray,
         images: list[np.ndarray],
         masks: dict[MaskType, np.ndarray],
-        events: EventArray,
     ) -> EventArray:
         """
         Using images, masks, and events, returns new features as a pd.DataFrame.
+        :param events: an EventArray, potentially with populated feature data.
         :param images: a list of np.ndarrays, each representing a frame.
         :param masks: a dict of np.ndarrays, each representing a mask.
-        :param events: an EventArray, potentially with populated feature data.
         :return: an EventArray with new populated feature data.
         """
         pass

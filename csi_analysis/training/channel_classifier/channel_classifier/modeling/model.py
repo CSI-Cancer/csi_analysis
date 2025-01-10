@@ -2,23 +2,57 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Classes are returned as an incrementing values from 0
+CLASSES = [
+    "D",
+    "CK",
+    "CD",
+    "V",
+    "CK|CD|V",
+    "CK|CD",
+    "D|CK|CD|V",
+    "CK|V",
+    "D|CK|CD",
+    "D|CK|V",
+    "D|V",
+    "D|CD|V",
+    "D|CD",
+    "D|CK",
+    "CD|V",
+]
+
 
 class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, in_channels, out_channels, stride=1, dropout_rate=0.5):
         super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
+        )
         self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.dropout = nn.Dropout(dropout_rate)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_channels != self.expansion * out_channels:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, self.expansion * out_channels, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion * out_channels)
+                nn.Conv2d(
+                    in_channels,
+                    self.expansion * out_channels,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * out_channels),
             )
 
     def forward(self, x):
@@ -29,6 +63,7 @@ class BasicBlock(nn.Module):
         out = F.relu(out)
         return out
 
+
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=10, dropout_rate=0.5):
         super(ResNet, self).__init__()
@@ -36,10 +71,18 @@ class ResNet(nn.Module):
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1, dropout_rate=dropout_rate)
-        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2, dropout_rate=dropout_rate)
-        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2, dropout_rate=dropout_rate)
-        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2, dropout_rate=dropout_rate)
+        self.layer1 = self._make_layer(
+            block, 64, num_blocks[0], stride=1, dropout_rate=dropout_rate
+        )
+        self.layer2 = self._make_layer(
+            block, 128, num_blocks[1], stride=2, dropout_rate=dropout_rate
+        )
+        self.layer3 = self._make_layer(
+            block, 256, num_blocks[2], stride=2, dropout_rate=dropout_rate
+        )
+        self.layer4 = self._make_layer(
+            block, 512, num_blocks[3], stride=2, dropout_rate=dropout_rate
+        )
         self.linear = nn.Linear(512 * block.expansion, num_classes)
         self.dropout = nn.Dropout(dropout_rate)
 
@@ -63,20 +106,25 @@ class ResNet(nn.Module):
         out = self.linear(out)
         return out
 
+
 class DenseBlock(nn.Module):
     def __init__(self, in_channels, growth_rate, num_layers, dropout_rate=0.5):
         super(DenseBlock, self).__init__()
         self.layers = nn.ModuleList()
         self.dropout_rate = dropout_rate
         for i in range(num_layers):
-            self.layers.append(self._make_layer(in_channels + i * growth_rate, growth_rate))
+            self.layers.append(
+                self._make_layer(in_channels + i * growth_rate, growth_rate)
+            )
 
     def _make_layer(self, in_channels, growth_rate):
         return nn.Sequential(
             nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels, growth_rate, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Dropout(self.dropout_rate)
+            nn.Conv2d(
+                in_channels, growth_rate, kernel_size=3, stride=1, padding=1, bias=False
+            ),
+            nn.Dropout(self.dropout_rate),
         )
 
     def forward(self, x):
@@ -84,7 +132,8 @@ class DenseBlock(nn.Module):
             out = layer(x)
             x = torch.cat([x, out], 1)
         return x
-    
+
+
 class TransitionLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(TransitionLayer, self).__init__()
@@ -92,35 +141,61 @@ class TransitionLayer(nn.Module):
             nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
-            nn.AvgPool2d(kernel_size=2, stride=2)
+            nn.AvgPool2d(kernel_size=2, stride=2),
         )
 
     def forward(self, x):
         return self.layer(x)
-    
+
+
 class DenseNet(nn.Module):
-    def __init__(self, num_classes=15, growth_rate=32, num_layers_per_block=4, dropout_rate=0.5):
+    def __init__(
+        self, num_classes=15, growth_rate=32, num_layers_per_block=4, dropout_rate=0.5
+    ):
         super(DenseNet, self).__init__()
         self.growth_rate = growth_rate
         self.num_layers_per_block = num_layers_per_block
         self.dropout_rate = dropout_rate
 
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=2 * growth_rate, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_channels=3,
+            out_channels=2 * growth_rate,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=False,
+        )
         self.bn1 = nn.BatchNorm2d(2 * growth_rate)
 
-        self.block1 = DenseBlock(2 * growth_rate, growth_rate, num_layers_per_block, dropout_rate)
-        self.trans1 = TransitionLayer(2 * growth_rate + num_layers_per_block * growth_rate, growth_rate)
+        self.block1 = DenseBlock(
+            2 * growth_rate, growth_rate, num_layers_per_block, dropout_rate
+        )
+        self.trans1 = TransitionLayer(
+            2 * growth_rate + num_layers_per_block * growth_rate, growth_rate
+        )
 
-        self.block2 = DenseBlock(growth_rate, growth_rate, num_layers_per_block, dropout_rate)
-        self.trans2 = TransitionLayer(growth_rate + num_layers_per_block * growth_rate, growth_rate)
+        self.block2 = DenseBlock(
+            growth_rate, growth_rate, num_layers_per_block, dropout_rate
+        )
+        self.trans2 = TransitionLayer(
+            growth_rate + num_layers_per_block * growth_rate, growth_rate
+        )
 
-        self.block3 = DenseBlock(growth_rate, growth_rate, num_layers_per_block, dropout_rate)
-        self.trans3 = TransitionLayer(growth_rate + num_layers_per_block * growth_rate, growth_rate)
+        self.block3 = DenseBlock(
+            growth_rate, growth_rate, num_layers_per_block, dropout_rate
+        )
+        self.trans3 = TransitionLayer(
+            growth_rate + num_layers_per_block * growth_rate, growth_rate
+        )
 
-        self.block4 = DenseBlock(growth_rate, growth_rate, num_layers_per_block, dropout_rate)
+        self.block4 = DenseBlock(
+            growth_rate, growth_rate, num_layers_per_block, dropout_rate
+        )
 
         self.bn2 = nn.BatchNorm2d(growth_rate + num_layers_per_block * growth_rate)
-        self.fc = nn.Linear(growth_rate + num_layers_per_block * growth_rate, num_classes)
+        self.fc = nn.Linear(
+            growth_rate + num_layers_per_block * growth_rate, num_classes
+        )
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -138,16 +213,14 @@ class DenseNet(nn.Module):
         return x
 
 
-
-    
 def ResNet4(dropout=0.5, num_classes=10):
-    return ResNet(BasicBlock, [1, 1, 1, 1],
-                  num_classes=num_classes,
-                    dropout=dropout)
+    return ResNet(BasicBlock, [1, 1, 1, 1], num_classes=num_classes, dropout=dropout)
+
 
 def DenseNet121(dropout=0.5, num_classes=10):
-    return DenseNet(num_classes=num_classes,
-                    growth_rate=32,
-                    num_layers_per_block=6,
-                    dropout_rate=dropout)
-
+    return DenseNet(
+        num_classes=num_classes,
+        growth_rate=32,
+        num_layers_per_block=6,
+        dropout_rate=dropout,
+    )
