@@ -28,6 +28,7 @@ from config import (
 )
 
 from modeling.loader import get_data_loaders
+from modeling.loss import get_loss_fn
 
 
 #Utils imports
@@ -65,24 +66,16 @@ class Trainer(object):
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(sweep)
     
     def build_model(self, sweep):
-        #self.model = ResNet4(dropout_rate=sweep["dropout"], num_classes=sweep["num_classes"])
         self.model = get_model(dropout=sweep["dropout"],
                                 num_classes=sweep["num_classes"],
-                                  model_name="generic")
+                                  model_name=sweep["model"])
         if torch.cuda.device_count() > 1:
             self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
         self.model.to(sweep.device)
 
     def build_optimizer(self, sweep):
-        if sweep.optimizer == "sgd":
-            self.optimizer = torch.optim.SGD(
-                params=self.model.parameters(),
-                lr=sweep.lr,
-                weight_decay=sweep.weight_decay,
-                momentum=sweep.momentum
-            )
 
-        elif sweep.optimizer == "adam":
+        if sweep.optimizer == "adam":
             self.optimizer = torch.optim.Adam(
                 params=self.model.parameters(),
                 lr=sweep.lr,
@@ -104,20 +97,7 @@ class Trainer(object):
             )
 
     def build_loss(self, sweep):
-        # Calculate class weights
-        class_counts = []
-        class_dirs = os.listdir(INTERIM_DATA_DIR)
-        class_dirs.remove('hitlist_data_metadata.csv')
-        for class_dir in class_dirs:
-            class_path = os.path.join(INTERIM_DATA_DIR, class_dir)
-            class_counts.append(len(os.listdir(class_path)))
-
-        total_samples = sum(class_counts)
-        class_weights = [total_samples / count for count in class_counts]
-        class_weights = torch.tensor(class_weights, dtype=torch.float).to(self.config["device"])
-
-        # Define the loss function with class weights
-        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        self.criterion = get_loss_fn(sweep)  
 
     def train(self, sweep):
         best_val_loss = np.inf
@@ -130,11 +110,11 @@ class Trainer(object):
             train_total = 0
 
             train_loader = self.train_loader
-            for inputs, targets in tqdm(train_loader, desc=f"Epoch {epoch+1}/{sweep['epochs']}"):
-                inputs, targets = inputs.to(sweep["device"]), targets.to(sweep["device"])
+            for inputs, targets, prefix in tqdm(train_loader, desc=f"Epoch {epoch+1}/{sweep['epochs']}"):
+                inputs, targets, prefix = inputs.to(sweep["device"]), targets.to(sweep["device"]), prefix.to(sweep["device"])
 
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                outputs = self.model(inputs, prefix)
                 loss = self.criterion(outputs, targets)
                 loss.backward()
                 self.optimizer.step()
@@ -189,10 +169,10 @@ class Trainer(object):
         val_total = 0
         with torch.no_grad():
             val_loader = self.val_loader
-            for inputs, targets in val_loader:
-                inputs, targets = inputs.to(sweep["device"]), targets.to(sweep["device"])
+            for inputs, targets, prefix in val_loader:
+                inputs, targets, prefix = inputs.to(sweep["device"]), targets.to(sweep["device"]), prefix.to(sweep["device"])
 
-                outputs = self.model(inputs)
+                outputs = self.model(inputs, prefix)
                 loss = self.criterion(outputs, targets)
 
                 val_loss += loss.item()

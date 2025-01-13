@@ -1,4 +1,4 @@
-method: random
+method: bayes
 
 metric:
   name: val_accuracy
@@ -9,10 +9,10 @@ parameters:
     value: 200
   weight_decay:
     distribution: uniform
-    min: 0.0001
+    min: 0.00001
     max: 0.001
   l_e:
-    values: [5, 10, 15]   # max epoch for linear warm-up of lambda
+    values: [5, 10, 15, 20]   # max epoch for linear warm-up of lambda
   l_b:
     values: [0.96, 0.97, 0.98, 0.99] # base for exponential decay of lambda
   lr:
@@ -20,7 +20,7 @@ parameters:
     min: 0.000001
     max: 0.0001
   batch_size:
-    values: [64, 128, 256, 512, 728]
+    values: [32, 64, 128, 256, 512, 728]
   scheduler:
     value: LambdaLR
   optimizer:
@@ -33,3 +33,17 @@ parameters:
     values: [0.1, 0.2, 0.3, 0.4]
   device:
     value: cuda:0
+  model:
+    values: [generic]
+  loss:
+    values: [focal]
+  alpha:
+    distribution: uniform
+    min: 0.25
+    max: 1.0
+  gamma:
+    distribution: uniform
+    min: 0.0
+    max: 5.0
+  reduction:
+    values: [mean, sum]

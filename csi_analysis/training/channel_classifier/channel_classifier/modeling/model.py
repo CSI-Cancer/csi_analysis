@@ -193,17 +193,11 @@ class DenseNet(nn.Module):
         )
 
         self.bn2 = nn.BatchNorm2d(growth_rate + num_layers_per_block * growth_rate)
-<<<<<<< HEAD
         self.fc = nn.Linear(
-            growth_rate + num_layers_per_block * growth_rate, num_classes
+            1+growth_rate + num_layers_per_block * growth_rate, num_classes
         )
-=======
-        self.fc1 = nn.Linear(growth_rate + num_layers_per_block * growth_rate, 256)
-        self.fc2 = nn.Linear(257, 128)
-        self.fc3 = nn.Linear(128, num_classes)
->>>>>>> b428e63 (Data loader changes to use metadata, Generic CNN model, metrics for custom metrics.)
 
-    def forward(self, x):
+    def forward(self, x, prefix):
         x = F.relu(self.bn1(self.conv1(x)))
         x = self.block1(x)
         x = self.trans1(x)
@@ -215,9 +209,8 @@ class DenseNet(nn.Module):
         x = F.relu(self.bn2(x))
         x = F.adaptive_avg_pool2d(x, (1, 1))
         x = x.view(x.size(0), -1)
-        x = self.fc1(x)
-        x = self.fc2(x)
-        x = self.fc3(x)
+        x = torch.cat([x, prefix.unsqueeze(1)], 1)
+        x = self.fc(x)
         return x
     
 class GenericCNN(nn.Module):
@@ -235,14 +228,14 @@ class GenericCNN(nn.Module):
         self.conv5 = nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1)  # Adjusted output channels
         self.bn5 = nn.BatchNorm2d(512)  # Adjusted for 512 output channels
         self.dropout = nn.Dropout(dropout)
-        self.fc1 = nn.Linear(512, 256)
+        self.fc1 = nn.Linear(513, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, num_classes)
 
 
 
-    def forward(self, x):
+    def forward(self, x, prefix):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
@@ -250,6 +243,7 @@ class GenericCNN(nn.Module):
         x = F.relu(self.bn5(self.conv5(x)))
         x = self.dropout(x)
         x = x.view(-1, 512)  # Flatten the tensor
+        x = torch.cat([x, prefix.unsqueeze(1)], 1)
         x = self.dropout(F.relu(self.fc1(x)))
         x = self.dropout(F.relu(self.fc2(x)))
         x = self.dropout(F.relu(self.fc3(x)))
@@ -261,21 +255,13 @@ def ResNet4(dropout=0.5, num_classes=10):
     return ResNet(BasicBlock, [1, 1, 1, 1], num_classes=num_classes, dropout=dropout)
 
 
-def DenseNet121(dropout=0.5, num_classes=10):
-<<<<<<< HEAD
-    return DenseNet(
-        num_classes=num_classes,
-        growth_rate=32,
-        num_layers_per_block=6,
-        dropout_rate=dropout,
-    )
-=======
+def DenseNet121(dropout, num_classes):
     return DenseNet(num_classes=num_classes,
                     growth_rate=32,
                     num_layers_per_block=6,
                     dropout_rate=dropout)
 
-def get_model(dropout=0.5, num_classes=10, model_name="resnet"):
+def get_model(dropout=0.5, num_classes=15, model_name="generic"):
     if model_name == "resnet":
         return ResNet4(dropout=dropout, num_classes=num_classes)
     elif model_name == "densenet":
@@ -284,4 +270,3 @@ def get_model(dropout=0.5, num_classes=10, model_name="resnet"):
         return GenericCNN(dropout=dropout, num_classes=num_classes)
     else:
         raise ValueError("Unknown model name")
->>>>>>> b428e63 (Data loader changes to use metadata, Generic CNN model, metrics for custom metrics.)

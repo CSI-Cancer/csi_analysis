@@ -1,4 +1,4 @@
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 import torch
 import numpy as np
 import pandas as pd
@@ -17,29 +17,49 @@ from config import (
 
 from PIL import Image
 
+CLASS_MAP = {
+    'D':0,
+    'CK':1,
+    'CD':2,
+    'V':3,
+    'CK|CD|V':4,
+    'CK|CD':5,
+    'D|CK|CD|V':6,
+    'CK|V':7,
+    'D|CK|CD':8,
+    'D|CK|V':9,
+    'D|V':10,
+    'D|CD|V':11,
+    'D|CD':12,
+    'D|CK':13,
+    'CD|V':14,
+}
+
 
 class CustomDataset(Dataset):
-    def __init__(self, images, labels, transform=None, metadata=None):
-        self.images = images
-        self.labels = labels
-        assert len(self.images) == len(self.labels), "Mismatch between images and labels length"
+    def __init__(self, df, transform=None, split="train"):
+        self.df = df
         self.transform = transform
-        self.metadata = metadata
+        self.split = split
+        self.labels = df['classification'].map(CLASS_MAP).tolist()
+        self.prefix = df['prefix_encoded'].tolist()
+        self.images_path = df['path'].tolist()
+        assert len(self.images_path) == len(self.labels), "Mismatch between images and labels length"
+        
 
     def __len__(self):
-        return len(self.images)
+        return len(self.images_path)
     
     def __getitem__(self, idx):
-        image = self.images[idx]
+        image = np.array(Image.open(self.images_path[idx]))
         label = torch.tensor(self.labels[idx], dtype=torch.long)
-        if self.metadata is not None:
-            prefix = torch.tensor(self.metadata[idx], dtype=torch.long)
+        prefix = torch.tensor(self.prefix[idx], dtype=torch.float)
         image = Image.fromarray(image)
 
         if self.transform:
             image = self.transform(image)
 
-        return image, label
+        return image, label, prefix
     
 def get_transforms(augment):
     if augment:
@@ -56,92 +76,56 @@ def get_transforms(augment):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])  
-def get_prefix(files, metadata):
-    cohort = []
-    try:
-        for file in files:
-            slide_id = file.split('/')[-1].split('_')[0]
-            prefix = metadata['prefix_encoded'][metadata['slide_id'] == slide_id]
-            if prefix.empty:
-                slide_id = file.split('/')[-1].split('_')[0] + '_' + file.split('/')[-1].split('_')[1]
-                prefix = metadata['prefix_encoded'][metadata['slide_id'] == slide_id].values[0]
-                cohort.append(prefix)
-            else:
-                cohort.append(prefix.values[0])
-                
-    except Exception as e:
-        print(e, slide_id)
-    return cohort
 
 
 def get_data_loaders(sweep):
     if sweep.split == 'train/val/test':
-        #metadata = pd.read_csv(os.path.join(INTERIM_DATA_DIR, 'hitlist_data_metadata.csv'))
+        train_df = pd.read_csv(INTERIM_DATA_DIR / 'train.csv')
+        val_df = pd.read_csv(INTERIM_DATA_DIR / 'val.csv')
+        test_df = pd.read_csv(INTERIM_DATA_DIR / 'test.csv')
         root = INTERIM_DATA_DIR
-        classes = os.listdir(root)
-        classes.remove('hitlist_data_metadata.csv')
-        train_data = []
-        train_labels = []
-        #train_metadata = []
-        val_data = []
-        val_labels = []
-        #val_metadata = []
-        test_data = []
-        test_labels = []
-        #test_metadata = []
-        for i, class_name in enumerate(classes):
-            data = glob.glob(os.path.join(root, class_name, '*.png'))
-            np.random.shuffle(data)
-            #prefix = get_prefix(data, metadata)
-            train_data.extend(data[:int(0.7*len(data))])
-            train_labels.extend([class_map[class_name]]*len(data[:int(0.7*len(data))]))
-            #train_metadata.extend(prefix[:int(0.7*len(data))])
-            val_data.extend(data[int(0.7*len(data)):int(0.85*len(data))])
-            val_labels.extend([class_map[class_name]]*len(data[int(0.7*len(data)):int(0.85*len(data))]))
-            #val_metadata.extend(prefix[int(0.7*len(data)):int(0.85*len(data))])
-            test_data.extend(data[int(0.85*len(data)):])
-            test_labels.extend([class_map[class_name]]*len(data[int(0.85*len(data)):]))
-            #test_metadata.extend(prefix[int(0.85*len(data)):])
-        train_image = np.array([np.array(Image.open(data)) for data in train_data])
-        val_image = np.array([np.array(Image.open(data)) for data in val_data])
-        test_image = np.array([np.array(Image.open(data)) for data in test_data])
 
-        print(f"Number of Training Images : {train_image.shape[0]}")
-        print(f"Number of Validation: {val_image.shape[0]}")
-        print(f"Number of Test Images: {test_image.shape[0]}")
+        print(f"Number of Sample size: {train_df.shape[0]}")
+        print(f"Number of Validation: {val_df.shape[0]}")
+        print(f"Number of Test Images: {test_df.shape[0]}")
 
         # Define the transforms
         train_transform = get_transforms(augment=True)
         val_transform = get_transforms(augment=False)
         test_transform = get_transforms(augment=False)
 
-        train_dataset = CustomDataset(train_image,
-                                       train_labels,
+        train_dataset = CustomDataset(train_df,
                                          transform=train_transform,
-                                         metadata=None)#train_metadata)
-        val_dataset = CustomDataset(val_image,
-                                     val_labels,
+                                         split="train")
+        val_dataset = CustomDataset(val_df,
                                        transform=val_transform,
-                                       metadata=None)#val_metadata)
-        test_dataset = CustomDataset(test_image,
-                                      test_labels,
+                                       split="val")
+        test_dataset = CustomDataset(test_df,
                                         transform=test_transform,
-                                            metadata=None)#test_metadata)
+                                        split="test")
+        
+        # Calculate class weights for stratified sampling
+        class_counts = train_df['classification'].value_counts().to_dict()
+        class_weights = {cls: 1.0 / count for cls, count in class_counts.items()}
+        sample_weights = train_df['classification'].map(class_weights).values
+
+        # Create a WeightedRandomSampler
+        train_sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
 
         train_loader = DataLoader(train_dataset,
                                    batch_size=sweep.batch_size,
-                                     shuffle=True,
-                                     num_workers=0)
+                                     sampler=train_sampler,
+                                       num_workers=28)
         val_loader = DataLoader(val_dataset,
-                                 batch_size=sweep.batch_size,
+                                 batch_size=728,
                                    shuffle=False,
-                                   num_workers=0,
-                                   drop_last=True)
+                                     num_workers=28,
+                                       drop_last=True)
         test_loader = DataLoader(test_dataset,
-                                  batch_size=sweep.batch_size,
+                                  batch_size=728,
                                     shuffle=False,
-                                    num_workers=0,
-                                    drop_last=True)
+                                      num_workers=28,
+                                        drop_last=True)
 
         return train_loader, val_loader, test_loader
 
