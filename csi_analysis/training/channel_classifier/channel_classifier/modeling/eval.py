@@ -85,13 +85,25 @@ class Evaluator:
         # Calculate accuracy for each class
         class_accuracies = {self.class_map[i]: class_correct[i] / class_total[i] if class_total[i] > 0 else 0 for i in range(self.sweep.num_classes)}
 
+        # Sort class accuracies by class names
+        sorted_class_accuracies = dict(sorted(class_accuracies.items()))
+
         # Plot the accuracy for each class
         plt.figure(figsize=(10, 6))
-        plt.bar(class_accuracies.keys(), class_accuracies.values())
+        bars = plt.bar(sorted_class_accuracies.keys(), sorted_class_accuracies.values())
         plt.xlabel('Class')
         plt.ylabel('Accuracy')
         plt.title('Accuracy of Each Class')
         plt.xticks(rotation=45)
+        plt.yticks([i/10 for i in range(11)])  # Add y-ticks for each class
+        plt.tight_layout()  # Adjust layout to make room for labels
+
+        # Annotate each bar with the y-value (accuracy)
+        for bar in bars:
+            yval = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.2f}', ha='center', va='bottom')
+
+        # Save the plot
         plt.savefig('class_accuracies.png')
 
 if __name__ == "__main__":
