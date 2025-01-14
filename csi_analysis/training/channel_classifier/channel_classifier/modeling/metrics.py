@@ -1,10 +1,13 @@
 import torch
 
-def calculate_top_5_accuracy(self, output, target):
-        with torch.no_grad():
-            maxk = min(5, output.size(1))
-            _, pred = output.topk(maxk, 1, True, True)
-            pred = pred.t()
-            correct = pred.eq(target.view(1, -1).expand_as(pred))
-            top_5_correct = correct[:5].reshape(-1).float().sum(0, keepdim=True)
-            return top_5_correct.mul_(100.0 / target.size(0))
+def top_k_accuracy(outputs, targets, k=5):
+    _, preds = outputs.topk(k, 1, True, True)
+    correct = preds.eq(targets.view(-1, 1).expand_as(preds))
+    correct_k = correct[:, :k].sum().item()
+    top_k_classes = preds.tolist()  # Convert tensor to list for easier handling
+    return correct_k / targets.size(0), top_k_classes
+
+def accuracy(outputs, targets):
+    _, preds = torch.max(outputs, 1)
+    correct = (preds == targets).sum().item()
+    return correct / targets.size(0)

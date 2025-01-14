@@ -19,7 +19,7 @@ from config import (
     DATA_DIR, MODELS_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR
 )
 #Model imports
-from modeling.model import ResNet4, DenseNet121, get_model
+from modeling.model import get_model
 
 
 #Data config imports

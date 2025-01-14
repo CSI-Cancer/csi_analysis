@@ -83,7 +83,6 @@ def get_data_loaders(sweep):
         train_df = pd.read_csv(INTERIM_DATA_DIR / 'train.csv')
         val_df = pd.read_csv(INTERIM_DATA_DIR / 'val.csv')
         test_df = pd.read_csv(INTERIM_DATA_DIR / 'test.csv')
-        root = INTERIM_DATA_DIR
 
         print(f"Number of Sample size: {train_df.shape[0]}")
         print(f"Number of Validation: {val_df.shape[0]}")
@@ -128,6 +127,21 @@ def get_data_loaders(sweep):
                                         drop_last=True)
 
         return train_loader, val_loader, test_loader
+    elif sweep.split == "test":
+        test_df = pd.read_csv(INTERIM_DATA_DIR / "test.csv")
+        print(f"Number of Test Images: {test_df.shape[0]}")
+        test_transform = get_transforms(augment=False)
+        test_dataset = CustomDataset(test_df,
+                                        transform=test_transform,
+                                        split="test")
+        test_loader = DataLoader(test_dataset,
+                                  batch_size=728,
+                                    shuffle=False,
+                                      num_workers=28,
+                                        drop_last=True)
+        return test_loader
+    else:
+        raise ValueError("Invalid split value. Must be 'train/val/test' or 'test'")
 
 
 

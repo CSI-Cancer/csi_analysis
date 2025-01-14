@@ -7,6 +7,7 @@ import platform
 
 from loguru import logger
 import yaml
+from types import SimpleNamespace
 load_dotenv()
 
 
@@ -83,4 +84,33 @@ class_map = {
     'CD|V':14,
 }
 
-### Model configuration
+pred_encoder = {
+    0: 'D',
+    1: 'CK',
+    2: 'CD',
+    3: 'V',
+    4: 'CK|CD|V',
+    5: 'CK|CD',
+    6: 'D|CK|CD|V',
+    7: 'CK|V',
+    8: 'D|CK|CD',
+    9: 'D|CK|V',
+    10: 'D|V',
+    11: 'D|CD|V',
+    12: 'D|CD',
+    13: 'D|CK',
+    14: 'CD|V',
+}
+
+# Test sweep configurations
+test_sweep = {
+    "split": "test",
+    "batch_size": 728,
+    "device": "cuda:0",
+    "dropout": 0.5,
+    "num_classes": 15,
+    "model": 'generic',
+    "model_path": MODELS_DIR / "saved" / "best_checkpoint_70.pth",
+    "top_k": 10,
+}
+test_sweep = SimpleNamespace(**test_sweep)
