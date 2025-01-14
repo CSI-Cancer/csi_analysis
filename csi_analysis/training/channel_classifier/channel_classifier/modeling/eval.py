@@ -85,8 +85,8 @@ class Evaluator:
         # Calculate accuracy for each class
         class_accuracies = {self.class_map[i]: class_correct[i] / class_total[i] if class_total[i] > 0 else 0 for i in range(self.sweep.num_classes)}
 
-        # Sort class accuracies by class names
-        sorted_class_accuracies = dict(sorted(class_accuracies.items()))
+        # Sort class accuracies first by descending accuracy values, then by class names
+        sorted_class_accuracies = dict(sorted(class_accuracies.items(), key=lambda item: (-item[1], item[0])))
 
         # Plot the accuracy for each class
         plt.figure(figsize=(10, 6))
