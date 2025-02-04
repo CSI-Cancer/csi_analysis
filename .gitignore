@@ -164,8 +164,10 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# VS Code
+.vscode/
+
 # unnecessary data files from channel classifier training
 /csi_analysis/training/channel_classifier/data/*
 /csi_analysis/training/channel_classifier/notebooks/data/*
-
-/wandb/
+wandb/
