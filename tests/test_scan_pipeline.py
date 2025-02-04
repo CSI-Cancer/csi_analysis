@@ -4,30 +4,21 @@ import sys
 import numpy as np
 import pandas as pd
 
+import functools
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
 from csi_images.csi_scans import Scan
 from csi_images.csi_events import EventArray
 from csi_analysis.pipelines.scan import *
 
 
 class DummyPreprocessor(TilePreprocessor):
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        """
-        Must have a logging.Logger as self.log.
-        :param scan: scan metadata, which may be used for inferring parameters.
-        :param version: a version string, recommended to be an ISO date.
-        :param save: whether to save the immediate results of this module.
-        """
-        self.scan = scan
-        self.version = version
-        self.save = save
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def preprocess(self, images: list[np.ndarray]) -> list[np.ndarray]:
         return images
@@ -36,20 +27,11 @@ class DummyPreprocessor(TilePreprocessor):
 class DummySegmenter(TileSegmenter):
     mask_type = MaskType.EVENT
 
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        self.scan = scan
-        self.version = version
-        self.save = save
-        # List of output mask types that this segmenter can output; must exist
-        self.mask_types = [mask_type for mask_type in MaskType]
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def segment(
         self,
@@ -64,18 +46,11 @@ class DummySegmenter(TileSegmenter):
 class DummyImageFilter(ImageFilter):
     mask_type = MaskType.EVENT
 
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        self.scan = scan
-        self.version = version
-        self.save = save
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def filter_images(
         self,
@@ -86,18 +61,11 @@ class DummyImageFilter(ImageFilter):
 
 
 class DummyFeatureExtractor(FeatureExtractor):
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        self.scan = scan
-        self.version = version
-        self.save = save
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def extract_features(
         self,
@@ -110,36 +78,22 @@ class DummyFeatureExtractor(FeatureExtractor):
 
 
 class DummyFeatureFilter(FeatureFilter):
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        self.scan = scan
-        self.version = version
-        self.save = save
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def filter_features(self, events: EventArray) -> tuple[EventArray, EventArray]:
         return events, EventArray()
 
 
 class DummyClassifier(EventClassifier):
-    def __init__(
-        self,
-        scan: Scan,
-        version: str,
-        save: bool = False,
-    ):
-        self.scan = scan
-        self.version = version
-        self.save = save
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"{self.__class__.__name__}-{self.version})"
+        return self.__class__.__name__
 
     def classify_events(self, events: EventArray) -> EventArray:
         events.add_metadata(
@@ -155,23 +109,40 @@ def test_scan_pipeline():
     log_options = {
         sys.stderr: {"level": "DEBUG", "colorize": True},
     }
+    # The test should run as quickly as possible, so we use the largest possible border
+    border_size = min([scan.roi[0].tile_rows / 2, scan.roi[0].tile_cols / 2])
+    border_size = int(border_size - 0.5)  # Ensure that there's at least 1 valid tile
+    n_tiles = (scan.roi[0].tile_rows - 2 * border_size) * (
+        scan.roi[0].tile_cols - 2 * border_size
+    )
     pipeline = ScanPipeline(
         scan,
         output_path="tests/data",
-        preprocessors=[DummyPreprocessor(scan, "2024-10-30")],
-        segmenters=[DummySegmenter(scan, "2024-10-30")],
-        image_filters=[DummyImageFilter(scan, "2024-10-30")],
-        feature_extractors=[DummyFeatureExtractor(scan, "2024-10-30")],
-        tile_feature_filters=[DummyFeatureFilter(scan, "2024-10-30")],
-        tile_event_classifiers=[DummyClassifier(scan, "2024-10-30")],
-        scan_feature_filters=[DummyFeatureFilter(scan, "2024-10-30")],
-        scan_event_classifiers=[DummyClassifier(scan, "2024-10-30")],
-        max_workers=1,
+        preprocessors=[DummyPreprocessor()],
+        segmenters=[DummySegmenter()],
+        image_filters=[DummyImageFilter()],
+        feature_extractors=[DummyFeatureExtractor()],
+        tile_feature_filters=[DummyFeatureFilter()],
+        tile_event_classifiers=[DummyClassifier()],
+        scan_feature_filters=[DummyFeatureFilter()],
+        scan_event_classifiers=[DummyClassifier()],
+        excluded_border_size=border_size,
+        save_steps=True,
+        clean_steps=True,
+        executor_constructor=functools.partial(
+            ProcessPoolExecutor,
+            max_workers=4,
+            mp_context=multiprocessing.get_context("spawn"),
+        ),
         log_options=log_options,
     )
     events = pipeline.run()
-    assert len(events) == scan.roi[0].tile_rows * scan.roi[0].tile_cols
+    assert len(events) == n_tiles
     assert os.path.exists(f"tests/data/{scan.slide_id}.hdf5")
 
     # Clean up
     os.remove(f"tests/data/{scan.slide_id}.hdf5")
+
+
+if __name__ == "__main__":
+    test_scan_pipeline()

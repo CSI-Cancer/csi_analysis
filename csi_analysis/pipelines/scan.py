@@ -1,16 +1,11 @@
 import os
 import time
-import warnings
-from concurrent.futures.thread import ThreadPoolExecutor
+import shutil
 from enum import Enum
 from abc import ABC, abstractmethod
-from loguru import logger
+from typing import Callable
 
-try:
-    import imageio.v3 as imageio
-except ImportError:
-    # Not required for implementing abstract classes
-    imageio = None
+from loguru import logger
 
 import numpy as np
 import pandas as pd
@@ -19,12 +14,18 @@ from tqdm import tqdm
 import functools
 import itertools
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import Executor
 
 from csi_images.csi_scans import Scan
 from csi_images.csi_tiles import Tile
 from csi_images.csi_frames import Frame
 from csi_images.csi_events import EventArray
+
+try:
+    import imageio.v3 as imageio
+except ImportError:
+    # Not required for implementing abstract classes
+    imageio = None
 
 
 class MaskType(Enum):
@@ -159,7 +160,7 @@ class TileSegmenter(ABC):
         # Check on masks
         if masks is None:
             masks = {}
-        if self.mask_type in masks:
+        if self.mask_type in masks.keys():
             # Throw a warning that we will end up overwriting the mask
             logger.warning(f"{self.mask_type} mask already exists; overwriting")
 
@@ -240,7 +241,7 @@ class ImageFilter(ABC):
         start_time = time.time()
         new_mask = None
 
-        if self.mask_type not in masks:
+        if self.mask_type not in masks.keys():
             raise ValueError(
                 f"Mask type {self.mask_type} not found in masks; "
                 f"cannot filter out masks that don't exist"
@@ -575,7 +576,8 @@ class ScanPipeline:
         report_generators: list[ReportGenerator] = (),
         excluded_border_size: int = 0,
         save_steps: bool = False,
-        max_workers: int = 61,
+        clean_steps: bool = False,
+        executor_constructor: Callable[[], Executor] = None,
         log_options: dict = None,
     ):
         # Set up loguru logger
@@ -588,8 +590,9 @@ class ScanPipeline:
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
         self.save_steps = save_steps
+        self.clean_steps = clean_steps
         self.excluded_border_size = excluded_border_size
-        self.max_workers = max_workers
+        self.executor_constructor = executor_constructor
 
         self.preprocessors = preprocessors
         self.segmenters = segmenters
@@ -626,12 +629,11 @@ class ScanPipeline:
                 self.scan.roi[0].tile_rows - self.excluded_border_size,
             ),
         )
-        # First, do tile-specific steps
-        max_workers = min(multiprocessing.cpu_count() - 1, 61)
-        # Don't need to parallelize; probably for debugging
+
+        # Set up the job to run on each tile
         tile_job = functools.partial(
             process_tile,
-            output_path=temp_path,
+            temp_path=temp_path,
             preprocessors=self.preprocessors,
             segmenters=self.segmenters,
             image_filters=self.image_filters,
@@ -639,19 +641,20 @@ class ScanPipeline:
             feature_filters=self.tile_feature_filters,
             event_classifiers=self.tile_event_classifiers,
         )
-        if self.max_workers <= 1:
-            events = list(tqdm(map(tile_job, tiles)))
+
+        step_start_time = time.time()
+        if self.executor_constructor is None:
+            events = list(tqdm(map(tile_job, tiles), total=len(tiles)))
         else:
-            with ProcessPoolExecutor(
-                max_workers, mp_context=multiprocessing.get_context("spawn")
-            ) as executor:
-                events = list(
-                    tqdm(
-                        executor.map(
-                            tile_job, tiles, itertools.repeat(self.log_options)
-                        )
-                    )
+            with self.executor_constructor() as executor:
+                tile_job = functools.partial(
+                    tile_job,
+                    temp_path=temp_path,
                 )
+                events = list(tqdm(executor.map(tile_job, tiles), total=len(tiles)))
+
+        logger.info(f"Done per-tile steps in {time.time() - step_start_time:.3f} sec")
+        step_start_time = time.time()
 
         # Combine EventArrays from all tiles
         events = EventArray.merge(events)
@@ -664,16 +667,22 @@ class ScanPipeline:
         for c in self.scan_event_classifiers:
             events = c.run(self.scan, events, temp_path)
 
+        logger.info(f"Done overall steps in {time.time() - step_start_time:.3f} sec")
+        step_start_time = time.time()
+
         # Save the final events
         events.save_hdf5(os.path.join(self.output_path, f"{self.scan.slide_id}"))
 
         # Generate reports
         for r in self.report_generators:
-            success = r.make_report(events, self.output_path)
-            if not success:
-                logger.warning(
-                    f"Report generation failed for {r}; see logs for details"
-                )
+            r.make_report(events, self.output_path)
+
+        logger.info(f"Made report(s) in {time.time() - step_start_time:.3f} sec")
+
+        # Clean up intermediate outputs
+        if self.clean_steps and temp_path is not None:
+            logger.info(f"Cleaning up intermediate outputs at {temp_path}")
+            shutil.rmtree(temp_path)
 
         logger.info(f"Pipeline finished in {(time.time() - start_time)/60:.2f} min")
 
@@ -682,7 +691,7 @@ class ScanPipeline:
 
 def process_tile(
     tile: Tile,
-    output_path: str = None,
+    temp_path: str = None,
     preprocessors: list[TilePreprocessor] = (),
     segmenters: list[TileSegmenter] = (),
     image_filters: list[ImageFilter] = (),
@@ -694,7 +703,7 @@ def process_tile(
     """
     Runs tile-specific pipeline steps on a tile.
     :param tile: the tile to run the modules on.
-    :param output_path: a str representing the path to save outputs or None to not save
+    :param temp_path: a str representing the path to save outputs or None to not save
     :param preprocessors: a list of TilePreprocessor objects.
     :param segmenters: a list of TileSegmenter objects.
     :param image_filters: a list of ImageFilter objects.
@@ -719,27 +728,27 @@ def process_tile(
     logger.debug(f"Loaded {len(images)} frame images for tile {tile.n}")
 
     for p in preprocessors:
-        images = p.run(tile, images, output_path)
+        images = p.run(tile, images, temp_path)
 
     # Multiple segmenters may require some coordination
     masks = {}
     for s in segmenters:
-        masks = s.run(tile, images, output_path)
+        masks = s.run(tile, images, masks, temp_path)
 
     for f in image_filters:
-        masks = f.run(tile, images, masks, output_path)
+        masks = f.run(tile, images, masks, temp_path)
 
     # Convert masks to an EventArray
     events = EventArray.from_mask(masks[MaskType.EVENT], tile)
 
     for e in feature_extractors:
-        events = e.run(tile, events, images, masks, output_path)
+        events = e.run(tile, events, images, masks, temp_path)
 
     for f in feature_filters:
-        events, _ = f.run(tile, events, output_path)
+        events, _ = f.run(tile, events, temp_path)
 
     for c in event_classifiers:
-        events = c.run(tile, events, output_path)
+        events = c.run(tile, events, temp_path)
 
-    logger.info(f"Tile {tile.n} finished in {time.time() - start_time:.3f} sec")
+    logger.debug(f"Tile {tile.n} finished in {time.time() - start_time:.3f} sec")
     return events
