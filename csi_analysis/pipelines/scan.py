@@ -1,19 +1,23 @@
 import os
 import time
+import warnings
+from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 from abc import ABC, abstractmethod
 from loguru import logger
 
 try:
-    import tifffile
+    import imageio.v3 as imageio
 except ImportError:
     # Not required for implementing abstract classes
-    tifffile = None
+    imageio = None
 
 import numpy as np
 import pandas as pd
 
+from tqdm import tqdm
 import functools
+import itertools
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
@@ -39,8 +43,6 @@ class TilePreprocessor(ABC):
     """
     Abstract class for a tile preprocessor.
     """
-
-    save: bool = False
 
     @abstractmethod
     def preprocess(self, images: list[np.ndarray]) -> list[np.ndarray]:
@@ -70,40 +72,40 @@ class TilePreprocessor(ABC):
         Runs the preprocessor on one tile's images.
         Consider overriding this method to run on many or all tiles.
         :param tile: the tile to run the preprocessor on.
-        :param images: a list of np.ndarrays, each representing a frame.
+        :param images: a list of np.ndarrays, each representing a frame's image.
         :param output_path: a str representing the path to save outputs.
+        Will add an appropriately named folder to this path.
         :return: a list of np.ndarrays, each representing a frame.
         """
-        if tifffile is None and output_path is not None and self.save:
-            raise ModuleNotFoundError("tifffile is required for saving outputs")
-
         start_time = time.time()
-
         new_images = None
 
         # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
-            file_paths = [
-                os.path.join(output_path, self.__repr__(), frame.get_file_name())
-                for frame in Frame.get_frames(tile)
-            ]
-            # Check if the preprocessor outputs already exist; load if so
+        if imageio is None and output_path is not None:
+            output_path = None
+            logger.warning("imageio is required for saving outputs; skipping save")
+        elif output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            # Get the paths for the frames
+            file_paths = [f.get_file_path(output_path) for f in Frame.get_frames(tile)]
+            # Check if the outputs already exist; load if so
             if all([os.path.exists(file_path) for file_path in file_paths]):
-                new_images = [tifffile.imread(file_path) for file_path in file_paths]
-                logger.debug(f"Loaded previously saved output for tile {tile.n}")
-        else:
-            file_paths = None
+                new_images = [imageio.imread(file_path) for file_path in file_paths]
+                logger.debug(f"Loaded saved output for tile {tile.n}")
 
         if new_images is None:
             # We couldn't load anything; run the preprocessor
             new_images = self.preprocess(images)
             dt = f"{time.time() - start_time:.3f} sec"
             logger.debug(f"Preprocessed tile {tile.n} in {dt}")
-        if file_paths is not None:
-            # Save if desired
+
+        # Save if desired
+        if output_path is not None:
             for file_path, image in zip(file_paths, new_images):
-                tifffile.imwrite(file_path, image)
-            logger.debug(f"Saved images for tile {tile.n}")
+                imageio.imwrite(file_path, image, compression="deflate")
+            logger.debug(f"Saved preprocessed images for tile {tile.n}")
         return new_images
 
 
@@ -112,15 +114,19 @@ class TileSegmenter(ABC):
     Abstract class for a tile segmenter.
     """
 
-    save: bool = False
+    mask_type: MaskType  #: The type of mask that this segmenter outputs.
 
     @abstractmethod
-    def segment(self, images: list[np.ndarray]) -> dict[MaskType, np.ndarray]:
+    def segment(
+        self, images: list[np.ndarray], masks: dict[MaskType, np.ndarray]
+    ) -> dict[MaskType, np.ndarray]:
         """
         Segments the frames of a tile to enumerated mask(s), not modifying images.
         Mask(s) should be returned in a dict with labeled types.
         :param images: a list of np.ndarrays, each representing a frame.
-        :return: a dict of np.ndarrays, each representing a mask.
+        :param masks: a dict of np.ndarrays, each representing a mask.
+        :return: masks, but with an additional entry for the new mask type OR
+        overwritten entry for the same mask type.
         """
         pass
 
@@ -135,6 +141,7 @@ class TileSegmenter(ABC):
         self,
         tile: Tile,
         images: list[np.ndarray],
+        masks: dict[MaskType, np.ndarray] = None,
         output_path: str = None,
     ) -> dict[MaskType, np.ndarray]:
         """
@@ -142,46 +149,49 @@ class TileSegmenter(ABC):
         Consider overriding this method to run on many or all tiles.
         :param tile: the tile to run the segmenter on.
         :param images: a list of np.ndarrays, each representing a frame.
+        :param masks: a dict of np.ndarrays, each representing a mask.
         :param output_path: a str representing the path to save outputs.
-        :return: a dict of np.ndarrays, each representing a mask.
+        :return: masks, but with an additional entry for the new mask type.
         """
-        if tifffile is None and output_path is not None and self.save:
-            raise ModuleNotFoundError("tifffile is required for saving outputs")
-
         start_time = time.time()
+        new_mask = None
 
-        new_masks = None
+        # Check on masks
+        if masks is None:
+            masks = {}
+        if self.mask_type in masks:
+            # Throw a warning that we will end up overwriting the mask
+            logger.warning(f"{self.mask_type} mask already exists; overwriting")
 
-        # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
-            file_paths = {
-                key: os.path.join(
-                    output_path, self.__repr__(), f"{tile.n}-{key.value}.tif"
-                )
-                for key in MaskType
-            }
-            # Check if the segmenter outputs already exist; load if so
-            if all([os.path.exists(file_paths[key]) for key in file_paths]):
-                new_masks = {
-                    key: tifffile.imread(file_paths[key]) for key in file_paths
-                }
-                logger.debug(f"Loaded previously saved output for tile {tile.n}")
-        else:
-            file_paths = None
+        # Attempt to load the mask from a previous run
+        if imageio is None and output_path is not None:
+            output_path = None
+            logger.warning("imageio is required for saving outputs; skipping save")
+        elif output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            output_path = os.path.join(output_path, f"{tile.n}.tif")
+            # Check if the outputs already exist; load if so
+            if os.path.exists(output_path):
+                new_mask = imageio.imread(output_path)
+                logger.debug(f"Loaded saved output for tile {tile.n}")
 
-        if new_masks is None:
+        if new_mask is None:
             # We couldn't load anything; run the segmenter
-            new_masks = self.segment(images)
+            masks = self.segment(images, masks)
             dt = f"{time.time() - start_time:.3f} sec"
             logger.debug(f"Segmented tile {tile.n} in {dt}")
+        else:
+            # Loaded a mask, update it in the dict
+            masks[self.mask_type] = new_mask
 
-        if file_paths is not None:
-            # Save if desired
-            for key, file_path in file_paths.items():
-                tifffile.imwrite(file_path, new_masks[key])
+        # Save if desired
+        if output_path is not None:
+            imageio.imwrite(output_path, masks[self.mask_type], compression="deflate")
             logger.debug(f"Saved masks for tile {tile.n}")
 
-        return new_masks
+        return masks
 
 
 class ImageFilter(ABC):
@@ -189,22 +199,19 @@ class ImageFilter(ABC):
     Abstract class for an image-based event filter.
     """
 
-    save: bool = False
+    mask_type: MaskType  #: The type of mask that this filter overwrites.
 
     @abstractmethod
     def filter_images(
-        self,
-        images: list[np.ndarray],
-        masks: dict[MaskType, np.ndarray],
+        self, images: list[np.ndarray], masks: dict[MaskType, np.ndarray]
     ) -> dict[MaskType, np.ndarray]:
         """
-        Using images and masks, returns new masks that should have filtered out
-        unwanted objects from the existing masks.
-        Should not be in-place, i.e. should not modify images or masks.
-        Returns a dict of masks that will overwrite the existing masks on identical keys.
+        Using images and masks, returns a modified masks that should have
+        filtered out unwanted objects from the existing mask at mask_type.
         :param images: a list of np.ndarrays, each representing a frame.
         :param masks: a dict of np.ndarrays, each representing a mask.
-        :return: a dict of np.ndarrays, each representing a mask; now filtered.
+        :return: a dict of np.ndarrays, each representing a mask, with a modified
+        mask for the specified mask_type.
         """
         pass
 
@@ -230,44 +237,43 @@ class ImageFilter(ABC):
         :param output_path: a str representing the path to save outputs.
         :return: a dict of np.ndarrays, each representing a mask.
         """
-        if tifffile is None and output_path is not None and self.save:
-            raise ModuleNotFoundError("tifffile is required for saving outputs")
-
         start_time = time.time()
+        new_mask = None
 
-        new_masks = None
+        if self.mask_type not in masks:
+            raise ValueError(
+                f"Mask type {self.mask_type} not found in masks; "
+                f"cannot filter out masks that don't exist"
+            )
 
-        # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
-            file_paths = {
-                key: os.path.join(
-                    output_path, self.__repr__(), f"{tile.n}-{key.value}.tif"
-                )
-                for key in MaskType
-            }
-            # Check if the image filter outputs already exist; load if so
-            if all([os.path.exists(file_paths[key]) for key in file_paths]):
-                new_masks = {
-                    key: tifffile.imread(file_paths[key]) for key in file_paths
-                }
-                logger.debug(f"Loaded previously saved output for tile {tile.n}")
-        else:
-            file_paths = None
+        # Attempt to load the mask from a previous run
+        if imageio is None and output_path is not None:
+            output_path = None
+            logger.warning("imageio is required for saving outputs; skipping save")
+        if output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            output_path = os.path.join(output_path, f"{tile.n}.tif")
+            # Check if the outputs already exist; load if so
+            if os.path.exists(output_path):
+                new_mask = imageio.imread(output_path)
+                logger.debug(f"Loaded saved output for tile {tile.n}")
 
-        if new_masks is None:
+        if new_mask is None:
             # We couldn't load anything; run the image filter
-            new_masks = self.filter_images(images, masks)
+            masks = self.filter_images(images, masks)
             dt = f"{time.time() - start_time:.3f} sec"
             logger.debug(f"Filtered tile {tile.n} in {dt}")
+        else:
+            # Loaded a mask, update it in the dict
+            masks[self.mask_type] = new_mask
 
-        if file_paths is not None:
-            # Save if desired
-            for key, file_path in file_paths.items():
-                tifffile.imwrite(file_path, new_masks[key])
+        # Save if desired
+        if output_path is not None:
+            imageio.imwrite(output_path, masks[self.mask_type], compression="deflate")
             logger.debug(f"Saved masks for tile {tile.n}")
 
-        # Update the masks
-        masks.update(new_masks)
         return masks
 
 
@@ -276,20 +282,18 @@ class FeatureExtractor(ABC):
     Abstract class for a feature extractor.
     """
 
-    save: bool = False
-
     @abstractmethod
     def extract_features(
         self,
         events: EventArray,
-        images: list[np.ndarray],
-        masks: dict[MaskType, np.ndarray],
+        images: list[np.ndarray] | list[list[np.ndarray]],
+        masks: dict[MaskType, np.ndarray] | list[dict[MaskType, np.ndarray]],
     ) -> EventArray:
         """
-        Using images, masks, and events, returns new features as a pd.DataFrame.
+        Using images, masks, and events, adds new features to events.
         :param events: an EventArray, potentially with populated feature data.
-        :param images: a list of np.ndarrays, each representing a frame.
-        :param masks: a dict of np.ndarrays, each representing a mask.
+        :param images: a list of np.ndarrays, each representing a frame; or a list thereof.
+        :param masks: a dict of np.ndarrays, each representing a mask; or a list thereof.
         :return: an EventArray with new populated feature data.
         """
         pass
@@ -303,53 +307,56 @@ class FeatureExtractor(ABC):
 
     def run(
         self,
-        tile: Tile,
-        images: list[np.ndarray],
-        masks: dict[MaskType, np.ndarray],
+        target: Tile | Scan,
         events: EventArray,
+        images: list[np.ndarray] | list[list[np.ndarray]],
+        masks: dict[MaskType, np.ndarray],
         output_path: str = None,
     ) -> EventArray:
         """
         Runs the feature extractor on a tile's images. Consider overriding this
         method to run on many or all tiles.
-        :param tile: the tile to run the feature extractor on.
+        :param target: the scan or tile to run the feature extractor on.
+        :param events: an EventArray.
         :param images: a list of np.ndarrays, each representing a frame.
         :param masks: a dict of np.ndarrays, each representing a mask.
-        :param events: an EventArray without feature data.
         :param output_path: a str representing the path to save outputs.
-        :return: an EventArray with populated feature data.
+        :return: an EventArray with more feature data.
         """
-        # Run through the feature extractors
         start_time = time.time()
 
-        new_features = None
-
-        # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
-            file_path = os.path.join(output_path, self.__repr__(), f"{tile.n}.parquet")
-            # Check if the feature extractor outputs already exist; load if so
-            if os.path.exists(file_path):
-                new_features = pd.read_parquet(file_path)
-                logger.debug(f"Loaded previously saved output for tile {tile.n}")
+        # Slightly different handling for scans and tiles
+        if isinstance(target, Tile):
+            tag = f"tile {target.n}"
+            file = f"{target.n}"
+        elif isinstance(target, Scan):
+            tag = f"all of {target.slide_id}"
+            file = f"{target.slide_id}"
         else:
-            file_path = None
+            raise ValueError("metadata must be a Tile or Scan object")
 
-        if new_features is None:
-            # We couldn't load anything; run the feature extractor
-            new_features = self.extract_features(images, masks, events)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Extracted features for tile {tile.n} in {dt}")
+        # Attempt to load the feature-filled events from a previous run
+        if output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            output_path = os.path.join(output_path, file)
+            # Check if the outputs already exist; load if so
+            if os.path.exists(output_path):
+                events = EventArray.load_hdf5(output_path)
+                logger.debug(f"Loaded saved output for {tag}")
+                return events  # Exit early
 
-        # TODO: handle column name collisions
-        # Maybe checks beforehand? Maybe drops columns here?
+        # Didn't exit early
+        events = self.extract_features(events, images, masks)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Extracted features for {tag} in {dt}")
 
-        if file_path is not None:
-            # Save if desired
-            new_features.to_parquet(file_path, index=False)
-            logger.debug(f"Saved features for tile {tile.n}")
+        # Save if desired
+        if output_path is not None:
+            events.save_hdf5(output_path)
+            logger.debug(f"Saved features for {tag}")
 
-        # Update the features
-        events.add_features(new_features)
         return events
 
 
@@ -358,13 +365,8 @@ class FeatureFilter(ABC):
     Abstract class for a feature-based event filter.
     """
 
-    save: bool = False
-
     @abstractmethod
-    def filter_features(
-        self,
-        events: EventArray,
-    ) -> tuple[EventArray, EventArray]:
+    def filter_features(self, events: EventArray) -> tuple[EventArray, EventArray]:
         """
         Removes events from an event array based on feature values.
         :param events: a EventArray with populated features.
@@ -381,60 +383,59 @@ class FeatureFilter(ABC):
 
     def run(
         self,
-        metadata: Scan | Tile,
+        target: Tile | Scan,
         events: EventArray,
         output_path: str = None,
-    ) -> EventArray:
+    ) -> tuple[EventArray, EventArray]:
         """
         Runs as many feature filters as desired on the event features.
-        :param metadata: the scan or tile to run the feature filter on.
+        :param target: the scan or tile to run the feature filter on.
         :param events: an EventArray with populated feature data.
         :param output_path: a str representing the path to save outputs.
         :return: two EventArrays: tuple[remaining, filtered]
         """
         start_time = time.time()
+        remaining = None
+        filtered = None
 
         # Slightly different handling for scans and tiles
-        if isinstance(metadata, Scan):
-            file_stub = f"{self.__repr__()}"
-            log_msg = f"all of {metadata.slide_id}"
-        elif isinstance(metadata, Tile):
-            file_stub = f"{self.__repr__()}/{metadata.n}"
-            log_msg = f"tile {metadata.n}"
+        if isinstance(target, Tile):
+            tag = f"tile {target.n}"
+            file = f"{target.n}"
+        elif isinstance(target, Scan):
+            tag = f"all of {target.slide_id}"
+            file = f"{target.slide_id}"
         else:
-            raise ValueError("metadata must be a Scan or Tile object")
+            raise ValueError("metadata must be a Tile or Scan object")
 
-        remaining_events = None
-        filtered_events = None
-
-        # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
+        # Attempt to load the results from a previous run
+        if output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            # Get the paths for the results
             file_paths = [
-                os.path.join(output_path, f"{file_stub}-remaining.h5"),
-                os.path.join(output_path, f"{file_stub}-filtered.h5"),
+                os.path.join(output_path, f"{file}-remaining.h5"),
+                os.path.join(output_path, f"{file}-filtered.h5"),
             ]
-            # Check if the feature filter outputs already exist; load if so
+            # Check if the outputs already exist; load if so
             if all([os.path.exists(file_path) for file_path in file_paths]):
-                remaining_events, filtered_events = [
-                    EventArray.load_hdf5(file_path) for file_path in file_paths
-                ]
-                logger.debug(f"Loaded previously saved events for {log_msg}")
-        else:
-            file_paths = None
+                remaining, filtered = [EventArray.load_hdf5(f) for f in file_paths]
+                logger.debug(f"Loaded saved output for {tag}")
 
-        if remaining_events is None:
+        if remaining is None or filtered is None:
             # We couldn't load anything; run the feature filter
-            remaining_events, filtered_events = self.filter_features(events)
+            remaining, filtered = self.filter_features(events)
             dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Filtered for {log_msg} in {dt}")
+            logger.debug(f"Filtered for {tag} in {dt}")
 
-        if file_paths is not None:
-            # Save if desired
-            remaining_events.save_hdf5(file_paths[0])
-            filtered_events.save_hdf5(file_paths[1])
-            logger.debug(f"Saved events for {log_msg}")
+        # Save if desired
+        if output_path is not None:
+            remaining.save_hdf5(file_paths[0])
+            filtered.save_hdf5(file_paths[1])
+            logger.debug(f"Saved events for {tag}")
 
-        return remaining_events
+        return remaining, filtered
 
 
 class EventClassifier(ABC):
@@ -442,13 +443,8 @@ class EventClassifier(ABC):
     Abstract class for an event classifier.
     """
 
-    save: bool = False
-
     @abstractmethod
-    def classify_events(
-        self,
-        events: EventArray,
-    ) -> EventArray:
+    def classify_events(self, events: EventArray) -> EventArray:
         """
         Classifies events based on features, then populates the metadata.
         :param events: a EventArray with populated features.
@@ -465,13 +461,13 @@ class EventClassifier(ABC):
 
     def run(
         self,
-        metadata: Scan | Tile,
+        target: Scan | Tile,
         events: EventArray,
         output_path: str = None,
     ):
         """
         Runs the event classifier on the event features.
-        :param metadata: the scan or tile to run the feature filter on.
+        :param target: the scan or tile to run the feature filter on.
         :param events: an EventArray with potentially populated metadata.
         :param output_path: a str representing the path to save outputs.
         :return: an EventArray with populated metadata.
@@ -479,42 +475,38 @@ class EventClassifier(ABC):
         start_time = time.time()
 
         # Slightly different handling for scans and tiles
-        if isinstance(metadata, Scan):
-            file_name = f"{self.__repr__()}"
-            log_msg = f"all of {metadata.slide_id}"
-        elif isinstance(metadata, Tile):
-            file_name = f"{self.__repr__()}/{metadata.n}"
-            log_msg = f"tile {metadata.n}"
+        if isinstance(target, Tile):
+            tag = f"tile {target.n}"
+            file = f"{target.n}"
+        elif isinstance(target, Scan):
+            tag = f"all of {target.slide_id}"
+            file = f"{target.slide_id}"
         else:
-            raise ValueError("metadata must be a Scan or Tile object")
+            raise ValueError("metadata must be a Tile or Scan object")
 
-        new_events = None
+        # Attempt to load the results from a previous run
+        if output_path is not None:
+            # Add a folder for this module's outputs
+            output_path = os.path.join(output_path, self.__repr__())
+            os.makedirs(output_path, exist_ok=True)
+            output_path = os.path.join(output_path, f"{file}.h5")
+            # Check if the outputs already exist; load if so
+            if os.path.exists(output_path):
+                events = EventArray.load_hdf5(output_path)
+                logger.debug(f"Loaded saved output for {tag}")
+                return events  # Exit early
 
-        # Populate the anticipated file paths for saving if needed
-        if output_path is not None and self.save:
-            file_path = os.path.join(output_path, f"{file_name}.h5")
-            # Check if the event classifier outputs already exist; load if so
-            if os.path.exists(file_path):
-                new_events = EventArray.load_hdf5(file_path)
-                logger.debug(f"Loaded previously saved output for {log_msg}")
-        else:
-            file_path = None
+        # Didn't exit early
+        events = self.classify_events(events)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Classified events for {tag} in {dt}")
 
-        if new_events is None:
-            # We couldn't load anything; run the event classifier
-            new_events = self.classify_events(events)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Classified events for {log_msg} in {dt}")
+        # Save if desired
+        if output_path is not None:
+            events.save_hdf5(output_path)
+            logger.debug(f"Saved events for {tag}")
 
-        # TODO: handle column name collisions
-        # Maybe checks beforehand? Maybe drops columns here?
-
-        if file_path is not None:
-            # Save if desired
-            new_events.save_hdf5(file_path)
-            logger.debug(f"Saved events for {log_msg}")
-
-        return new_events
+        return events
 
 
 class ReportGenerator(ABC):
@@ -522,19 +514,18 @@ class ReportGenerator(ABC):
     Abstract class for a report generator.
     """
 
-    save: bool = False
-
     @abstractmethod
     def make_report(
         self,
-        output_path: str,
         events: EventArray,
+        output_path: str,
     ) -> bool:
         """
         Creates a report based off of the passed events. Unlike other modules,
         the outputs may vary greatly. This method should be used to generate
         a report in the desired format and should check on the outputs to ensure
         that the report was generated successfully.
+        :param output_path: a str representing the path to save outputs.
         :param events: a EventArray with populated features.
         :return: True for success.
         """
@@ -548,7 +539,7 @@ class ReportGenerator(ABC):
         return f"{self.__class__.__name__}"
 
 
-class TilingScanPipeline:
+class ScanPipeline:
     """
     This is an **example pipeline** for processing a scan. It assumes that
     particular modules are meant to be run on tiles vs. scans. You may need to
@@ -573,80 +564,42 @@ class TilingScanPipeline:
         self,
         scan: Scan,
         output_path: str,
-        preprocessors: list[TilePreprocessor] = None,
-        segmenters: list[TileSegmenter] = None,
-        image_filters: list[ImageFilter] = None,
-        feature_extractors: list[FeatureExtractor] = None,
-        tile_feature_filters: list[FeatureFilter] = None,
-        tile_event_classifiers: list[EventClassifier] = None,
-        scan_feature_filters: list[FeatureFilter] = None,
-        scan_event_classifiers: list[EventClassifier] = None,
-        report_generators: list[ReportGenerator] = None,
+        preprocessors: list[TilePreprocessor] = (),
+        segmenters: list[TileSegmenter] = (),
+        image_filters: list[ImageFilter] = (),
+        feature_extractors: list[FeatureExtractor] = (),
+        tile_feature_filters: list[FeatureFilter] = (),
+        tile_event_classifiers: list[EventClassifier] = (),
+        scan_feature_filters: list[FeatureFilter] = (),
+        scan_event_classifiers: list[EventClassifier] = (),
+        report_generators: list[ReportGenerator] = (),
+        excluded_border_size: int = 0,
         save_steps: bool = False,
         max_workers: int = 61,
         log_options: dict = None,
     ):
-        # Set up logger
+        # Set up loguru logger
         self.log_options = log_options
         if log_options is not None and len(log_options) > 0:
             logger.remove(0)
             for sink, options in log_options.items():
-                logger.add(sink, **options, enqueue=True)
+                logger.add(sink, **options)
         self.scan = scan
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
         self.save_steps = save_steps
-        if self.save_steps:
-            os.makedirs(os.path.join(self.output_path, "temp"), exist_ok=True)
+        self.excluded_border_size = excluded_border_size
         self.max_workers = max_workers
 
-        if preprocessors is None:
-            preprocessors = []
-        elif isinstance(preprocessors, TilePreprocessor):
-            preprocessors = [preprocessors]
         self.preprocessors = preprocessors
-        if segmenters is None:
-            segmenters = []
-        elif isinstance(segmenters, TileSegmenter):
-            segmenters = [segmenters]
         self.segmenters = segmenters
-        if image_filters is None:
-            image_filters = []
-        elif isinstance(image_filters, ImageFilter):
-            image_filters = [image_filters]
         self.image_filters = image_filters
-        if feature_extractors is None:
-            feature_extractors = []
-        elif isinstance(feature_extractors, FeatureExtractor):
-            feature_extractors = [feature_extractors]
         self.feature_extractors = feature_extractors
-        if tile_feature_filters is None:
-            tile_feature_filters = []
-        elif isinstance(tile_feature_filters, FeatureFilter):
-            tile_feature_filters = [tile_feature_filters]
         self.tile_feature_filters = tile_feature_filters
-        if tile_event_classifiers is None:
-            tile_event_classifiers = []
-        elif isinstance(tile_event_classifiers, EventClassifier):
-            tile_event_classifiers = [tile_event_classifiers]
         self.tile_event_classifiers = tile_event_classifiers
-        if scan_feature_filters is None:
-            scan_feature_filters = []
-        elif isinstance(scan_feature_filters, FeatureFilter):
-            scan_feature_filters = [scan_feature_filters]
         self.scan_feature_filters = scan_feature_filters
-        if scan_event_classifiers is None:
-            scan_event_classifiers = []
-        elif isinstance(scan_event_classifiers, EventClassifier):
-            scan_event_classifiers = [scan_event_classifiers]
         self.scan_event_classifiers = scan_event_classifiers
-        if report_generators is None:
-            report_generators = []
-        elif isinstance(report_generators, ReportGenerator):
-            report_generators = [report_generators]
         self.report_generators = report_generators
-        # Log queue for multiprocessing
-        logger_queue = None
 
     def run(self) -> EventArray:
         """
@@ -659,46 +612,64 @@ class TilingScanPipeline:
         # Prepare path for intermediate (module-by-module) outputs
         if self.save_steps:
             temp_path = os.path.join(self.output_path, "temp")
+            os.makedirs(temp_path, exist_ok=True)
         else:
             temp_path = None
 
-        # Get all tiles
-        tiles = Tile.get_tiles(self.scan)
+        # Get tiles, excluding the border
+        tiles = Tile.get_tiles_by_xy_bounds(
+            self.scan,
+            (
+                self.excluded_border_size,
+                self.excluded_border_size,
+                self.scan.roi[0].tile_cols - self.excluded_border_size,
+                self.scan.roi[0].tile_rows - self.excluded_border_size,
+            ),
+        )
         # First, do tile-specific steps
         max_workers = min(multiprocessing.cpu_count() - 1, 61)
         # Don't need to parallelize; probably for debugging
+        tile_job = functools.partial(
+            process_tile,
+            output_path=temp_path,
+            preprocessors=self.preprocessors,
+            segmenters=self.segmenters,
+            image_filters=self.image_filters,
+            feature_extractors=self.feature_extractors,
+            feature_filters=self.tile_feature_filters,
+            event_classifiers=self.tile_event_classifiers,
+        )
         if self.max_workers <= 1:
-            tile_job = functools.partial(
-                run_tile_pipeline,
-                pipeline=self,
-                output_path=temp_path,
-            )
-            events = list(map(tile_job, tiles))
+            events = list(tqdm(map(tile_job, tiles)))
         else:
-            context = multiprocessing.get_context("spawn")
-            tile_job = functools.partial(
-                run_tile_pipeline,
-                pipeline=self,
-                output_path=temp_path,
-                log_options=self.log_options,
-            )
-            with ProcessPoolExecutor(max_workers, mp_context=context) as executor:
-                events = list(executor.map(tile_job, tiles))
+            with ProcessPoolExecutor(
+                max_workers, mp_context=multiprocessing.get_context("spawn")
+            ) as executor:
+                events = list(
+                    tqdm(
+                        executor.map(
+                            tile_job, tiles, itertools.repeat(self.log_options)
+                        )
+                    )
+                )
 
         # Combine EventArrays from all tiles
         events = EventArray.merge(events)
 
         # Filter events by features at the scan level
         for f in self.scan_feature_filters:
-            events = f.run(self.scan, events, temp_path)
+            events, _ = f.run(self.scan, events, temp_path)
 
         # Classify events at the scan level
         for c in self.scan_event_classifiers:
             events = c.run(self.scan, events, temp_path)
 
+        # Save the final events
+        events.save_hdf5(os.path.join(self.output_path, f"{self.scan.slide_id}"))
+
         # Generate reports
         for r in self.report_generators:
-            success = r.make_report(events)
+            success = r.make_report(events, self.output_path)
             if not success:
                 logger.warning(
                     f"Report generation failed for {r}; see logs for details"
@@ -709,21 +680,33 @@ class TilingScanPipeline:
         return events
 
 
-def run_tile_pipeline(
+def process_tile(
     tile: Tile,
-    pipeline: TilingScanPipeline,
-    output_path: str,
+    output_path: str = None,
+    preprocessors: list[TilePreprocessor] = (),
+    segmenters: list[TileSegmenter] = (),
+    image_filters: list[ImageFilter] = (),
+    feature_extractors: list[FeatureExtractor] = (),
+    feature_filters: list[FeatureFilter] = (),
+    event_classifiers: list[EventClassifier] = (),
     log_options: dict = None,
 ):
     """
     Runs tile-specific pipeline steps on a tile.
-    :param pipeline:
+    :param tile: the tile to run the modules on.
     :param output_path: a str representing the path to save outputs or None to not save
+    :param preprocessors: a list of TilePreprocessor objects.
+    :param segmenters: a list of TileSegmenter objects.
+    :param image_filters: a list of ImageFilter objects.
+    :param feature_extractors: a list of FeatureExtractor objects.
+    :param feature_filters: a list of FeatureFilter objects.
+    :param event_classifiers: a list of EventClassifier objects.
     :param log_options:
-    :param tile: the tile to run the pipeline on.
     :return: a EventArray with populated features and potentially
              populated metadata.
     """
+    start_time = time.time()
+
     # Set up multiprocess logging on the client side
     if log_options is not None and len(log_options) > 0:
         logger.remove(0)
@@ -735,32 +718,28 @@ def run_tile_pipeline(
     images = [frame.get_image() for frame in frames]
     logger.debug(f"Loaded {len(images)} frame images for tile {tile.n}")
 
-    for p in pipeline.preprocessors:
+    for p in preprocessors:
         images = p.run(tile, images, output_path)
 
     # Multiple segmenters may require some coordination
     masks = {}
-    for s in pipeline.segmenters:
-        new_masks = s.run(tile, images, output_path)
-        for key in new_masks:
-            if key in masks:
-                logger.warning(f"{key} mask has already been populated; ignoring")
-            else:
-                masks[key] = new_masks[key]
+    for s in segmenters:
+        masks = s.run(tile, images, output_path)
 
-    for f in pipeline.image_filters:
+    for f in image_filters:
         masks = f.run(tile, images, masks, output_path)
 
     # Convert masks to an EventArray
-    events = EventArray.from_mask(masks[MaskType.EVENT], pipeline.scan.slide_id, tile.n)
+    events = EventArray.from_mask(masks[MaskType.EVENT], tile)
 
-    for e in pipeline.feature_extractors:
-        events = e.run(tile, images, masks, events, output_path)
+    for e in feature_extractors:
+        events = e.run(tile, events, images, masks, output_path)
 
-    for f in pipeline.tile_feature_filters:
-        events = f.run(tile, events, output_path)
+    for f in feature_filters:
+        events, _ = f.run(tile, events, output_path)
 
-    for c in pipeline.tile_event_classifiers:
+    for c in event_classifiers:
         events = c.run(tile, events, output_path)
 
+    logger.info(f"Tile {tile.n} finished in {time.time() - start_time:.3f} sec")
     return events

@@ -19,7 +19,7 @@ from skimage import filters
 from skimage.filters import sobel
 from skimage.segmentation import relabel_sequential
 
-from csi_analysis.pipelines.scan_pipeline import TileSegmenter, MaskType
+from csi_analysis.pipelines.scan import TileSegmenter, MaskType
 
 
 class ClassicSegmenter(TileSegmenter):

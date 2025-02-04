@@ -13,7 +13,7 @@ from sklearn.cluster import AgglomerativeClustering
 
 from csi_images.csi_events import EventArray
 
-from ..pipelines.scan_pipeline import EventClassifier
+from ..pipelines.scan import EventClassifier
 
 
 class OcularReportClusterer(EventClassifier):

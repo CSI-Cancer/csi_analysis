@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 
 from csi_images.csi_scans import Scan
-from ..pipelines.scan_pipeline import TilePreprocessor
+from ..pipelines.scan import TilePreprocessor
 
 
 class TophatPreprocessor(TilePreprocessor):

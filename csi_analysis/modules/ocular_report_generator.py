@@ -5,7 +5,7 @@ import numpy as np
 from csi_images.csi_events import EventArray
 from csi_images.csi_scans import Scan
 
-from ..pipelines.scan_pipeline import ReportGenerator
+from ..pipelines.scan import ReportGenerator
 
 
 class OCULARReportGenerator(ReportGenerator):

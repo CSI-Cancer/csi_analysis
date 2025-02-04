@@ -1,3 +1,4 @@
+import os.path
 import sys
 
 import numpy as np
@@ -5,10 +6,10 @@ import pandas as pd
 
 from csi_images.csi_scans import Scan
 from csi_images.csi_events import EventArray
-from csi_analysis.pipelines import scan_pipeline
+from csi_analysis.pipelines.scan import *
 
 
-class DummyPreprocessor(scan_pipeline.TilePreprocessor):
+class DummyPreprocessor(TilePreprocessor):
     def __init__(
         self,
         scan: Scan,
@@ -28,11 +29,13 @@ class DummyPreprocessor(scan_pipeline.TilePreprocessor):
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
 
-    def preprocess(self, frame_images: list[np.ndarray]) -> list[np.ndarray]:
-        return frame_images
+    def preprocess(self, images: list[np.ndarray]) -> list[np.ndarray]:
+        return images
 
 
-class DummySegmenter(scan_pipeline.TileSegmenter):
+class DummySegmenter(TileSegmenter):
+    mask_type = MaskType.EVENT
+
     def __init__(
         self,
         scan: Scan,
@@ -43,20 +46,24 @@ class DummySegmenter(scan_pipeline.TileSegmenter):
         self.version = version
         self.save = save
         # List of output mask types that this segmenter can output; must exist
-        self.mask_types = [mask_type for mask_type in scan_pipeline.MaskType]
+        self.mask_types = [mask_type for mask_type in MaskType]
 
     def __repr__(self):
         return f"{self.__class__.__name__}-{self.version})"
 
     def segment(
-        self, frame_images: list[np.ndarray]
-    ) -> dict[scan_pipeline.MaskType, np.ndarray]:
-        mask = np.zeros(frame_images[0].shape).astype(np.uint16)
+        self,
+        images: list[np.ndarray],
+        masks: dict[MaskType, np.ndarray],
+    ) -> dict[MaskType, np.ndarray]:
+        mask = np.zeros(images[0].shape).astype(np.uint16)
         mask[100:200, 100:200] = 1
-        return {scan_pipeline.MaskType.EVENT: mask}
+        return {MaskType.EVENT: mask}
 
 
-class DummyImageFilter(scan_pipeline.ImageFilter):
+class DummyImageFilter(ImageFilter):
+    mask_type = MaskType.EVENT
+
     def __init__(
         self,
         scan: Scan,
@@ -72,13 +79,13 @@ class DummyImageFilter(scan_pipeline.ImageFilter):
 
     def filter_images(
         self,
-        frame_images: list[np.ndarray],
-        masks: dict[scan_pipeline.MaskType, np.ndarray],
-    ) -> dict[scan_pipeline.MaskType, np.ndarray]:
+        images: list[np.ndarray],
+        masks: dict[MaskType, np.ndarray],
+    ) -> dict[MaskType, np.ndarray]:
         return masks
 
 
-class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
+class DummyFeatureExtractor(FeatureExtractor):
     def __init__(
         self,
         scan: Scan,
@@ -94,15 +101,15 @@ class DummyFeatureExtractor(scan_pipeline.FeatureExtractor):
 
     def extract_features(
         self,
-        frame_images: list[np.ndarray],
-        masks: dict[scan_pipeline.MaskType, np.ndarray],
         events: EventArray,
-    ) -> pd.DataFrame:
-        features = pd.DataFrame({"mean_intensity": [np.mean(frame_images[0])]})
-        return features
+        images: list[np.ndarray],
+        masks: dict[MaskType, np.ndarray],
+    ) -> EventArray:
+        events.add_features(pd.DataFrame({"mean_intensity": [np.mean(images[0])]}))
+        return events
 
 
-class DummyFeatureFilter(scan_pipeline.FeatureFilter):
+class DummyFeatureFilter(FeatureFilter):
     def __init__(
         self,
         scan: Scan,
@@ -120,7 +127,7 @@ class DummyFeatureFilter(scan_pipeline.FeatureFilter):
         return events, EventArray()
 
 
-class DummyClassifier(scan_pipeline.EventClassifier):
+class DummyClassifier(EventClassifier):
     def __init__(
         self,
         scan: Scan,
@@ -148,7 +155,7 @@ def test_scan_pipeline():
     log_options = {
         sys.stderr: {"level": "DEBUG", "colorize": True},
     }
-    pipeline = scan_pipeline.TilingScanPipeline(
+    pipeline = ScanPipeline(
         scan,
         output_path="tests/data",
         preprocessors=[DummyPreprocessor(scan, "2024-10-30")],
@@ -163,6 +170,8 @@ def test_scan_pipeline():
         log_options=log_options,
     )
     events = pipeline.run()
-    assert (
-        len(events) == scan_pipeline.roi[0].tile_rows * scan_pipeline.roi[0].tile_cols
-    )
+    assert len(events) == scan.roi[0].tile_rows * scan.roi[0].tile_cols
+    assert os.path.exists(f"tests/data/{scan.slide_id}.hdf5")
+
+    # Clean up
+    os.remove(f"tests/data/{scan.slide_id}.hdf5")

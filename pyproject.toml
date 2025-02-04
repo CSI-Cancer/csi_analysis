@@ -9,23 +9,30 @@ authors = [
 readme = "README.md"
 
 dependencies = [
-    "csi_images",
-    "pandas",
+    "csi_images >= 3.0.0",
     "numpy",
+    "pandas",
+    "loguru",
+    "tqdm",
 ]
 
 
 [project.optional-dependencies]
 images = [
-    "csi_images[imageio]",
+    "csi_images[imageio] >= 3.0.0",
     "scikit-image",
     "opencv-python",
 ]
 cpu_ml = [
+    "torch",
+    "torchvision",
+    "torchsummary",
     "scikit-learn",
 ]
 gpu_ml = [
     "torch",
+    "torchvision",
+    "torchsummary",
     "cuml",
 ]
 cellpose = [
@@ -34,6 +41,7 @@ cellpose = [
 training = [
     "torch",
     "torchvision",
+    "torchsummary",
 ]
 dev = [
     "pdoc",

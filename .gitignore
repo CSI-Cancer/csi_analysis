@@ -1,3 +1,6 @@
+# Local directories
+tests/data/local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

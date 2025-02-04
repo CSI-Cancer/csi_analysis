@@ -2,7 +2,7 @@ from typing import Literal
 
 from csi_images.csi_events import EventArray
 
-from csi_analysis.pipelines.scan_pipeline import FeatureFilter
+from csi_analysis.pipelines.scan import FeatureFilter
 
 
 class ThresholdingFilter(FeatureFilter):
