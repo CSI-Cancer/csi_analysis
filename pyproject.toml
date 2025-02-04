@@ -16,7 +16,6 @@ dependencies = [
     "tqdm",
 ]
 
-
 [project.optional-dependencies]
 images = [
     "csi_images[imageio] >= 3.0.0",

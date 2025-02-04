@@ -1,6 +1,6 @@
 """
 Clusters events into groups of maximum size 20, which is the agreed-upon size for
-OCULAR-based reporting. Meant to be used in conjunction with ocular_report_montager.py.
+OCULAR-based reporting.
 """
 
 from loguru import logger
@@ -30,7 +30,6 @@ class OcularReportClusterer(EventClassifier):
         sort_by: str = None,
         ascending: bool = True,
         copy: bool = False,
-        save: bool = False,
     ):
         self.columns = columns
         self.column_name = column_name
@@ -38,7 +37,6 @@ class OcularReportClusterer(EventClassifier):
         self.max_cluster_size = max_cluster_size
         self.ascending = ascending
         self.copy = copy
-        self.save = save
 
     def __repr__(self):
         return f"{self.__class__.__name__})"
