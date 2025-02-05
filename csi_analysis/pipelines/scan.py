@@ -95,18 +95,18 @@ class TilePreprocessor(ABC):
             if all([os.path.exists(file_path) for file_path in file_paths]):
                 new_images = [imageio.imread(file_path) for file_path in file_paths]
                 logger.debug(f"Loaded saved output for tile {tile.n}")
+                return new_images  # Exit early
 
-        if new_images is None:
-            # We couldn't load anything; run the preprocessor
-            new_images = self.preprocess(images)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Preprocessed tile {tile.n} in {dt}")
+        new_images = self.preprocess(images)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Preprocessed tile {tile.n} in {dt}")
 
         # Save if desired
         if output_path is not None:
             for file_path, image in zip(file_paths, new_images):
                 imageio.imwrite(file_path, image, compression="deflate")
             logger.debug(f"Saved preprocessed images for tile {tile.n}")
+
         return new_images
 
 
@@ -175,17 +175,14 @@ class TileSegmenter(ABC):
             output_path = os.path.join(output_path, f"{tile.n}.tif")
             # Check if the outputs already exist; load if so
             if os.path.exists(output_path):
-                new_mask = imageio.imread(output_path)
+                masks[self.mask_type] = imageio.imread(output_path)
                 logger.debug(f"Loaded saved output for tile {tile.n}")
+                return masks  # Exit early
 
-        if new_mask is None:
-            # We couldn't load anything; run the segmenter
-            masks = self.segment(images, masks)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Segmented tile {tile.n} in {dt}")
-        else:
-            # Loaded a mask, update it in the dict
-            masks[self.mask_type] = new_mask
+        # We couldn't load anything; run the segmenter
+        masks = self.segment(images, masks)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Segmented tile {tile.n} in {dt}")
 
         # Save if desired
         if output_path is not None:
@@ -258,17 +255,12 @@ class ImageFilter(ABC):
             output_path = os.path.join(output_path, f"{tile.n}.tif")
             # Check if the outputs already exist; load if so
             if os.path.exists(output_path):
-                new_mask = imageio.imread(output_path)
+                masks[self.mask_type] = imageio.imread(output_path)
                 logger.debug(f"Loaded saved output for tile {tile.n}")
 
-        if new_mask is None:
-            # We couldn't load anything; run the image filter
-            masks = self.filter_images(images, masks)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Filtered tile {tile.n} in {dt}")
-        else:
-            # Loaded a mask, update it in the dict
-            masks[self.mask_type] = new_mask
+        masks = self.filter_images(images, masks)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Filtered tile {tile.n} in {dt}")
 
         # Save if desired
         if output_path is not None:
@@ -348,7 +340,6 @@ class FeatureExtractor(ABC):
                 logger.debug(f"Loaded saved output for {tag}")
                 return events  # Exit early
 
-        # Didn't exit early
         events = self.extract_features(events, images, masks)
         dt = f"{time.time() - start_time:.3f} sec"
         logger.debug(f"Extracted features for {tag} in {dt}")
@@ -423,12 +414,11 @@ class FeatureFilter(ABC):
             if all([os.path.exists(file_path) for file_path in file_paths]):
                 remaining, filtered = [EventArray.load_hdf5(f) for f in file_paths]
                 logger.debug(f"Loaded saved output for {tag}")
+                return remaining, filtered  # Exit early
 
-        if remaining is None or filtered is None:
-            # We couldn't load anything; run the feature filter
-            remaining, filtered = self.filter_features(events)
-            dt = f"{time.time() - start_time:.3f} sec"
-            logger.debug(f"Filtered for {tag} in {dt}")
+        remaining, filtered = self.filter_features(events)
+        dt = f"{time.time() - start_time:.3f} sec"
+        logger.debug(f"Filtered for {tag} in {dt}")
 
         # Save if desired
         if output_path is not None:
@@ -497,7 +487,6 @@ class EventClassifier(ABC):
                 logger.debug(f"Loaded saved output for {tag}")
                 return events  # Exit early
 
-        # Didn't exit early
         events = self.classify_events(events)
         dt = f"{time.time() - start_time:.3f} sec"
         logger.debug(f"Classified events for {tag} in {dt}")

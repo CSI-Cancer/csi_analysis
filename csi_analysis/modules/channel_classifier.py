@@ -71,12 +71,12 @@ class ChannelClassifier(FeatureExtractor):
         # Figured out num_layers_per_block is 6 from the model definition
         self.model = model.GenericCNN().to(device)
         # For some reason, the model is saved with "module." in front of the keys
-        # for key in list(model_state["model_state_dict"].keys()):
-        #     if key.startswith("module."):
-        #         new_key = key.replace("module.", "")
-        #         model_state["model_state_dict"][new_key] = model_state[
-        #             "model_state_dict"
-        #         ].pop(key)
+        for key in list(model_state["model_state_dict"].keys()):
+            if key.startswith("module."):
+                new_key = key.replace("module.", "")
+                model_state["model_state_dict"][new_key] = model_state[
+                    "model_state_dict"
+                ].pop(key)
         self.model.load_state_dict(model_state["model_state_dict"])
         self.model.eval()
 
@@ -107,14 +107,19 @@ class ChannelClassifier(FeatureExtractor):
         with torch.no_grad():
             for i, (x, _) in tqdm(enumerate(dataloader), total=len(dataloader)):
                 x = x.to(self.device)
+                prefix = torch.zeros(x.shape[0], dtype=torch.float32).to(self.device)
                 # Get the classification probabilities
-                probs = torch.softmax(self.model(x), dim=1)
+                probs = torch.softmax(self.model(x, prefix), dim=1)
                 # Get the classification labels and confidence
                 prob, index = torch.max(probs, dim=1)
                 # Append to appropriate lists
                 confidence.append(prob.detach().cpu())
                 classification.append(index.detach().cpu())
         torch.cuda.empty_cache()
+        # Flatten the lists
+        confidence = torch.cat(confidence).numpy()
+        classification = torch.cat(classification).numpy()
+        # Convert classification to a list of strings
         classification = [model.CLASSES[i] for i in classification]
         events.add_metadata(
             pd.DataFrame(

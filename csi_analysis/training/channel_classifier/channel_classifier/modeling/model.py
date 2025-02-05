@@ -194,7 +194,7 @@ class DenseNet(nn.Module):
 
         self.bn2 = nn.BatchNorm2d(growth_rate + num_layers_per_block * growth_rate)
         self.fc = nn.Linear(
-            1+growth_rate + num_layers_per_block * growth_rate, num_classes
+            1 + growth_rate + num_layers_per_block * growth_rate, num_classes
         )
 
     def forward(self, x, prefix):
@@ -212,7 +212,8 @@ class DenseNet(nn.Module):
         x = torch.cat([x, prefix.unsqueeze(1)], 1)
         x = self.fc(x)
         return x
-    
+
+
 class GenericCNN(nn.Module):
     def __init__(self, dropout=0.2, num_classes=15):
         super(GenericCNN, self).__init__()
@@ -223,17 +224,19 @@ class GenericCNN(nn.Module):
         self.bn2 = nn.BatchNorm2d(128)
         self.conv3 = nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1)
         self.bn3 = nn.BatchNorm2d(256)
-        self.conv4 = nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1)  # Adjusted output channels
+        self.conv4 = nn.Conv2d(
+            256, 512, kernel_size=4, stride=2, padding=1
+        )  # Adjusted output channels
         self.bn4 = nn.BatchNorm2d(512)  # Adjusted for 512 output channels
-        self.conv5 = nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1)  # Adjusted output channels
+        self.conv5 = nn.Conv2d(
+            512, 512, kernel_size=4, stride=2, padding=1
+        )  # Adjusted output channels
         self.bn5 = nn.BatchNorm2d(512)  # Adjusted for 512 output channels
         self.dropout = nn.Dropout(dropout)
         self.fc1 = nn.Linear(513, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, num_classes)
-
-
 
     def forward(self, x, prefix):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -256,10 +259,13 @@ def ResNet4(dropout=0.5, num_classes=10):
 
 
 def DenseNet121(dropout, num_classes):
-    return DenseNet(num_classes=num_classes,
-                    growth_rate=32,
-                    num_layers_per_block=6,
-                    dropout_rate=dropout)
+    return DenseNet(
+        num_classes=num_classes,
+        growth_rate=32,
+        num_layers_per_block=6,
+        dropout_rate=dropout,
+    )
+
 
 def get_model(dropout=0.5, num_classes=15, model_name="generic"):
     if model_name == "resnet":
