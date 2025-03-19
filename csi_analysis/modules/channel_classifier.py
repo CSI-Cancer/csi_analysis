@@ -146,6 +146,7 @@ class RGBImageDataset(Dataset):
         self.make_rgb = make_rgb
         self.images = images
         self.masks = masks
+        self.hard_mask = False
         if labels is None:
             labels = torch.zeros(len(images), dtype=torch.uint8)
         self.labels = labels
@@ -174,7 +175,7 @@ class RGBImageDataset(Dataset):
             y_start : y_start + self.image_size, x_start : x_start + self.image_size, :
         ]
 
-        if self.masks is not None:
+        if (self.hard_mask) and (self.masks is not None):
             mask = self.masks[i]
             mask = torch.tensor(mask, dtype=torch.bool)
             image = image * mask
