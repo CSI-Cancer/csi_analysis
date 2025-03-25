@@ -13,7 +13,7 @@ import numpy as np
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 # COnfig related imports
 from config import (
-    MODELS_DIR, INTERIM_DATA_DIR, test_sweep, pred_encoder
+    MODELS_DIR, INTERIM_DATA_DIR, test_sweep, pred_encoder, classes_to_merge
 )
 #Model imports
 from modeling.model import get_model
@@ -33,6 +33,7 @@ class Evaluator:
         # Load the test dataset
         self.test_loader = get_data_loaders(test_sweep)
         self.class_map = pred_encoder
+        self.merged_classes = classes_to_merge
         
 
         # Load the model
@@ -66,7 +67,7 @@ class Evaluator:
                 outputs = self.model(inputs, prefix)
 
                 total_accuracy += accuracy(outputs, targets) * targets.size(0)
-                top_k_acc, top_k_classes = top_k_accuracy(outputs, targets, k=self.sweep.top_k)
+                top_k_acc, _ = top_k_accuracy(outputs, targets, k=self.sweep.top_k)
                 total_top_k_accuracy += top_k_acc * targets.size(0)
                 total_samples += targets.size(0)
 
@@ -75,17 +76,42 @@ class Evaluator:
                     if target == pred:
                         class_correct[target.item()] += 1
                     class_total[target.item()] += 1
+        merged_corr = 0
+        merged_total = 0
+        merge_indices = []
+        for i in range(self.sweep.num_classes):
+            class_name = self.class_map[i]
+            if class_name in self.merged_classes:
+                merged_corr += class_correct[i]
+                merged_total += class_total[i]
+                merge_indices.append(i)
 
+        # Remove merged classes from dictionaries
+        for i in merge_indices:
+            del class_correct[i]
+            del class_total[i]
+
+        # Calculate average metrics
         avg_accuracy = total_accuracy / total_samples
         avg_top_k_accuracy = total_top_k_accuracy / total_samples
 
         print(f"Accuracy: {avg_accuracy:.4f}")
         print(f"Top-{self.sweep.top_k} Accuracy: {avg_top_k_accuracy:.4f}")
 
-        # Calculate accuracy for each class
-        class_accuracies = {self.class_map[i]: class_correct[i] / class_total[i] if class_total[i] > 0 else 0 for i in range(self.sweep.num_classes)}
+        # Calculate accuracy for each remaining class (which contain "D")
+        class_accuracies = {}
+        for i in range(self.sweep.num_classes):
+            # Skip non-D classes since they've been merged
+            if i in class_correct:
+                acc = class_correct[i] / class_total[i] if class_total[i] > 0 else 0
+                class_accuracies[self.class_map[i]] = acc
 
-        # Sort class accuracies first by descending accuracy values, then by class names
+        # Calculate accuracy for the merged class "D-"
+        merged_acc = merged_corr / merged_total if merged_total > 0 else 0
+        class_accuracies["D-"] = merged_acc
+        print(f"Merged class 'D-' Accuracy: {merged_acc:.4f}")
+
+        # Sort class accuracies first by descending accuracy then by class name
         sorted_class_accuracies = dict(sorted(class_accuracies.items(), key=lambda item: (-item[1], item[0])))
 
         # Plot the accuracy for each class
@@ -95,8 +121,8 @@ class Evaluator:
         plt.ylabel('Accuracy')
         plt.title('Accuracy of Each Class')
         plt.xticks(rotation=45)
-        plt.yticks([i/10 for i in range(11)])  # Add y-ticks for each class
-        plt.tight_layout()  # Adjust layout to make room for labels
+        plt.yticks([i/10 for i in range(11)])
+        plt.tight_layout()
 
         # Annotate each bar with the y-value (accuracy)
         for bar in bars:

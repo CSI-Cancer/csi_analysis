@@ -101,16 +101,34 @@ pred_encoder = {
     13: 'D|CK',
     14: 'CD|V',
 }
-
+classes_to_merge = ["CK", "CD", "V", 'CK|CD', 'CK|CD|V', 'CK|V', 'CD|V' ]
 # Test sweep configurations
 test_sweep = {
     "split": "test",
     "batch_size": 728,
     "device": "cuda:0",
     "dropout": 0.5,
-    "num_classes": 15,
+    "num_classes": 9,
     "model": 'generic',
     "model_path": MODELS_DIR / "saved" / "best_checkpoint_70.pth",
-    "top_k": 10,
+    "top_k": 3,
 }
 test_sweep = SimpleNamespace(**test_sweep)
+
+negative_class_mapping = {
+    'D':['CK', 'CD', 'V', 'CK|CD|V', 'CK|CD', 'CK|V', 'CD|V'],
+    'CK':['D', 'D|CD', 'D|CD|V','D|V', 'CD', 'V', 'CD|V'],
+    'CD':['D', 'D|CK', 'D|CK|V','D|V', 'CK', 'V', 'CK|V'],
+    'V':['D', 'CK', 'CD', 'CK|CD', 'D|CK|CD', 'D|CK', 'D|CD'],
+    'CK|CD|V': ['D'],
+    'CK|CD': ['D', 'V', 'D|V'],
+    'D|CK|CD|V': [],
+    'CK|V': ['D', 'CD', 'D|CD'],
+    'D|CK|CD':['V'],
+    'D|CK|V':['CD'],
+    'D|V':['CK', 'CD', 'CK|CD'],
+    'D|CD|V':['CK'],
+    'D|CD':['CK', 'V', 'CK|V'],
+    'D|CK':['CD', 'V', 'CD|V'],
+    'CD|V':['D', 'CK', 'D|CK'],
+}

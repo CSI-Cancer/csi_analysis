@@ -6,7 +6,7 @@ metric:
 
 parameters:
   epochs:
-    value: 200
+    value: 400
   weight_decay:
     distribution: uniform
     min: 0.00001
@@ -26,7 +26,7 @@ parameters:
   optimizer:
     value: adam
   num_classes:
-    value: 15
+    value: 9
   split:
     value: train/val/test
   dropout:

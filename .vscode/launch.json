@@ -1,16 +1,19 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
-            "type": "debugpy",
+            "name": "Python: Pretrain Debug",
+            "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/csi_analysis/training/channel_classifier/channel_classifier/modeling/pretrain.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "python": "${workspaceFolder}/.venv/bin/python",  // Use your project's .venv
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/csi_analysis/training/channel_classifier",
+                "VIRTUAL_ENV": "${workspaceFolder}/.venv",
+                "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
+            }
         }
     ]
 }

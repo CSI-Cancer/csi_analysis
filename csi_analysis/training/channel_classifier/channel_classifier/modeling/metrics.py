@@ -1,13 +1,12 @@
 import torch
 
-def top_k_accuracy(outputs, targets, k=5):
-    _, preds = outputs.topk(k, 1, True, True)
-    correct = preds.eq(targets.view(-1, 1).expand_as(preds))
-    correct_k = correct[:, :k].sum().item()
-    top_k_classes = preds.tolist()  # Convert tensor to list for easier handling
-    return correct_k / targets.size(0), top_k_classes
+def top_k_accuracy(outputs, targets, k=2):
+    # Dummy top-k implementation for illustration purposes
+    topk = torch.topk(outputs, k, dim=1)[1]
+    correct = topk.eq(targets.view(-1, 1).expand_as(topk))
+    topk_acc = correct.float().sum().item() / targets.size(0)
+    return topk_acc, None
 
 def accuracy(outputs, targets):
     _, preds = torch.max(outputs, 1)
-    correct = (preds == targets).sum().item()
-    return correct / targets.size(0)
+    return (preds == targets).float().mean().item()

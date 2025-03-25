@@ -59,3 +59,34 @@ def get_loss_fn(sweep, alpha=None, gamma=None):
         return FocalLoss(alpha=sweep["alpha"],
                           gamma=sweep["gamma"],
                           reduction=sweep["reduction"])
+
+class TripletLoss(nn.Module):
+    def __init__(self, margin=1.0):
+        super(TripletLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, anchor, positive, negative):
+        distance_positive = (anchor - positive).pow(2).sum(1)
+        distance_negative = (anchor - negative).pow(2).sum(1)
+        losses = F.relu(distance_positive - distance_negative + self.margin)
+        return losses.mean()
+    
+class InfoNCELoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super(InfoNCELoss, self).__init__()
+        self.temperature = temperature
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, anchor, positive):
+        # Normalize embeddings
+        anchor = F.normalize(anchor, dim=1)
+        positive = F.normalize(positive, dim=1)
+        
+        # Compute similarity matrix
+        logits = torch.matmul(anchor, positive.T) / self.temperature
+        
+        # Labels are all diagonal elements (positive pairs)
+        labels = torch.arange(logits.shape[0], device=logits.device)
+        
+        loss = self.criterion(logits, labels)
+        return loss

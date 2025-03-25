@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 from sklearn.utils import shuffle
+import random
 
 from pathlib import Path
 import os
@@ -12,27 +13,27 @@ import torchvision.transforms as transforms
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from config import (
-    INTERIM_DATA_DIR, class_map
+    INTERIM_DATA_DIR, class_map, negative_class_mapping
 )
 
 from PIL import Image
 
 CLASS_MAP = {
     'D':0,
-    'CK':1,
-    'CD':2,
-    'V':3,
-    'CK|CD|V':4,
-    'CK|CD':5,
-    'D|CK|CD|V':6,
-    'CK|V':7,
-    'D|CK|CD':8,
-    'D|CK|V':9,
-    'D|V':10,
-    'D|CD|V':11,
-    'D|CD':12,
-    'D|CK':13,
-    'CD|V':14,
+    'CK':8,
+    'CD':8,
+    'V':8,
+    'CK|CD|V':8,
+    'CK|CD':8,
+    'D|CK|CD|V':1,
+    'CK|V':8,
+    'D|CK|CD':2,
+    'D|CK|V':3,
+    'D|V':4,
+    'D|CD|V':5,
+    'D|CD':6,
+    'D|CK':7,
+    'CD|V':8,
 }
 
 
@@ -51,7 +52,7 @@ class CustomDataset(Dataset):
         return len(self.images_path)
     
     def __getitem__(self, idx):
-        image = np.array(Image.open(self.images_path[idx]))
+        image = np.load(self.images_path[idx][0:-3]+"npy")
         label = torch.tensor(self.labels[idx], dtype=torch.long)
         prefix = torch.tensor(self.prefix[idx], dtype=torch.float)
         image = Image.fromarray(image)
@@ -69,12 +70,14 @@ def get_transforms(augment):
             transforms.RandomRotation(20),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.9019, 1.4593, 1.3794, 0.8784],
+                                  std=[2.331, 3.0221, 2.9218, 2.1913])
         ])
     else:
         return transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.9019, 1.4593, 1.3794, 0.8784],
+                                 std=[2.331, 3.0221, 2.9218, 2.1913])
         ])  
 
 
@@ -87,6 +90,7 @@ def get_data_loaders(sweep):
         print(f"Number of Sample size: {train_df.shape[0]}")
         print(f"Number of Validation: {val_df.shape[0]}")
         print(f"Number of Test Images: {test_df.shape[0]}")
+
 
         # Define the transforms
         train_transform = get_transforms(augment=True)
@@ -142,8 +146,75 @@ def get_data_loaders(sweep):
         return test_loader
     else:
         raise ValueError("Invalid split value. Must be 'train/val/test' or 'test'")
+    
 
+class TripletDataset(Dataset):
+    def __init__(self, data_dir):
+        """
+        Args:
+            data_dir: Directory containing class folders with .npy files
+        """
+        self.data_dir = data_dir
+        self.negative_class_mapping = negative_class_mapping
 
+        self.classes = list(CLASS_MAP.keys())
+
+        # Load all data into memory
+        self.class_to_samples = {}
+
+        first_file = None
+
+        for class_name in self.classes:
+            class_path = os.path.join(self.data_dir, class_name)
+            if os.path.isdir(class_path):
+                samples = []
+                for file in os.listdir(class_path):
+                    if file.endswith(".npy"):
+                        data = np.load(os.path.join(class_path, file))
+                        # Permute NHWC to NCHW here during loading
+                        data = np.transpose(data, (2, 0, 1))  # [H, W, C] -> [C, H, W]
+                        if first_file is None:
+                            first_file = data
+                        samples.append(data)
+                if len(samples) > 1:
+                    self.class_to_samples[class_name] = samples
+
+        # Create blank negative samples (already in NCHW format)
+        self.blank_negative = np.zeros_like(first_file)
+
+        # Create list of anchor samples
+        self.samples = []
+        for class_name, samples in self.class_to_samples.items():
+            self.samples.extend([(sample, class_name) for sample in samples])
+
+    def __getitem__(self, idx):
+        anchor_sample, anchor_class = self.samples[idx]
+        
+        # Get positive sample (same class, different sample)
+        positive_samples = self.class_to_samples[anchor_class]
+        positive_sample = random.choice([s for s in positive_samples if not np.array_equal(s, anchor_sample)])
+        
+        # Get negative sample (different class)
+        negative_classes = self.negative_class_mapping.get(anchor_class, [c for c in self.classes if c != anchor_class])
+        if not negative_classes:
+            negative_sample = self.blank_negative
+        else:
+            negative_class = random.choice(negative_classes)
+            negative_sample = random.choice(self.class_to_samples[negative_class])
+
+        # Convert to torch tensors (already in NCHW format)
+        anchor = torch.from_numpy(anchor_sample).float()
+        positive = torch.from_numpy(positive_sample).float()
+        negative = torch.from_numpy(negative_sample).float()
+        
+        # Get numerical class label from CLASS_MAP
+        class_label = CLASS_MAP[anchor_class]
+        
+        return anchor, positive, negative, class_label
+
+    def __len__(self):
+        return len(self.samples)
+        
 
 if __name__ == "__main__":
     get_data_loaders(batch_size=32,

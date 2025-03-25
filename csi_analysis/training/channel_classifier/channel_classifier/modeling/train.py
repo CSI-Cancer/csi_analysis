@@ -43,7 +43,7 @@ class Trainer(object):
         self.config = config
         self.best_val_accuracy = 0
         self.best_val_loss = np.inf
-        self.early_stopping_patience = 15
+        self.early_stopping_patience = 25
         self.epochs_since_improvement = 0
         
     def run_training(self):
@@ -116,6 +116,9 @@ class Trainer(object):
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs, prefix)
                 loss = self.criterion(outputs, targets)
+                if np.isnan(loss.item()):
+                        print(f"Warning: Loss is NaN at epoch {epoch}. Skipping this batch.")
+                        continue
                 loss.backward()
                 self.optimizer.step()
 
@@ -154,8 +157,6 @@ class Trainer(object):
                   f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
             # Check for early stopping
             if self.epochs_since_improvement >= self.early_stopping_patience:
-                self.epochs_since_improvement = 0
-                self.early_stopping_patience = epoch
                 print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {self.early_stopping_patience} epochs.")
                 break
 
